@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
@@ -13,20 +14,25 @@
 -- Module providing functions for working with the local file system, its file and
 -- directories.
 module Headroom.IO.FileSystem
-    ( -- * Type Aliases
-      CreateDirectoryFn
+    ( -- * Data Types
+      AtomicWriteResult (..)
+
+      -- * Type Aliases
+    , CreateDirectoryFn
     , DoesDirectoryExistFn
     , DoesFileExistFn
     , FindFilesFn
     , FindFilesByExtsFn
     , FindFilesByTypesFn
     , GetCurrentDirectoryFn
+    , GetPermissionsFn
     , GetUserDirectoryFn
     , ListFilesFn
     , LoadFileFn
     , RemoveDirectoryFn
     , RemoveFileFn
     , RenameFileFn
+    , SetPermissionsFn
     , WriteTempFileFn
     , WriteFileFn
 
@@ -40,6 +46,9 @@ module Headroom.IO.FileSystem
     , findFilesByTypes
     , listFiles
     , loadFile
+
+      -- * Writing Files
+    , atomicWriteFile
 
       -- * Working with Files Metadata
     , fileExtension
@@ -59,24 +68,36 @@ import Headroom.FileType.Types (FileType)
 import RIO
 import qualified RIO.ByteString as B
 import RIO.Directory
-    ( createDirectoryIfMissing
+    ( Permissions
+    , createDirectoryIfMissing
     , doesDirectoryExist
     , doesFileExist
     , getCurrentDirectory
     , getDirectoryContents
     , getHomeDirectory
+    , getPermissions
     , removeDirectory
     , removeFile
     , renameFile
+    , setPermissions
     )
 import RIO.FilePath
     ( isExtensionOf
+    , takeDirectory
     , takeExtension
     , (</>)
     )
 import qualified RIO.List as L
 import qualified RIO.Text as T
 import System.IO (openBinaryTempFile)
+
+---------------------------------  DATA TYPES  ---------------------------------
+
+-- | Result of an atomic file write.
+data AtomicWriteResult
+    = AtomicWriteSuccess
+    | AtomicWriteConflict
+    deriving (Eq, Show)
 
 --------------------------------  TYPE ALIASES  --------------------------------
 
@@ -134,6 +155,9 @@ type FindFilesByTypesFn m =
 -- absolute path.
 type GetCurrentDirectoryFn m = m FilePath
 
+-- | Type of a function that obtains permissions for the given path.
+type GetPermissionsFn m = FilePath -> m Permissions
+
 -- | Type of a function that obtains the user's home directory as an absolute
 -- path.
 type GetUserDirectoryFn m = m FilePath
@@ -161,6 +185,9 @@ type RemoveFileFn m = FilePath -> m ()
 
 -- | Type of a function that renames a file.
 type RenameFileFn m = FilePath -> FilePath -> m ()
+
+-- | Type of a function that sets permissions for the given path.
+type SetPermissionsFn m = FilePath -> Permissions -> m ()
 
 -- | Type of a function that writes content to a unique temporary file.
 type WriteTempFileFn m = FilePath -> Text -> m FilePath
@@ -199,6 +226,8 @@ data FileSystem m = FileSystem
     -- ^ Function that recursively find files on given path by their file types.
     , fsGetCurrentDirectory :: GetCurrentDirectoryFn m
     -- ^ Function that obtains the current working directory as an absolute path.
+    , fsGetPermissions :: GetPermissionsFn m
+    -- ^ Function that obtains permissions for the given path.
     , fsGetUserDirectory :: GetUserDirectoryFn m
     -- ^ Function that obtains the user's home directory as an absolute path.
     , fsListFiles :: ListFilesFn m
@@ -212,6 +241,8 @@ data FileSystem m = FileSystem
     -- ^ Function that removes a file.
     , fsRenameFile :: RenameFileFn m
     -- ^ Function that renames a file.
+    , fsSetPermissions :: SetPermissionsFn m
+    -- ^ Function that sets permissions for the given path.
     , fsWriteTempFile :: WriteTempFileFn m
     -- ^ Function that writes content to a unique temporary file.
     , fsWriteFile :: WriteFileFn m
@@ -229,12 +260,14 @@ mkFileSystem =
         , fsFindFilesByExts = findFilesByExts
         , fsFindFilesByTypes = findFilesByTypes
         , fsGetCurrentDirectory = getCurrentDirectory
+        , fsGetPermissions = getPermissions
         , fsGetUserDirectory = getHomeDirectory
         , fsListFiles = listFiles
         , fsLoadFile = loadFile
         , fsRemoveDirectory = removeDirectory
         , fsRemoveFile = removeFile
         , fsRenameFile = renameFile
+        , fsSetPermissions = setPermissions
         , fsWriteTempFile = writeTempFile
         , fsWriteFile = writeFileUtf8
         }
@@ -288,12 +321,36 @@ fileExtension _ = Nothing
 loadFile :: (MonadIO m) => LoadFileFn m
 loadFile = readFileUtf8
 
+-- | Atomically replaces a file if its content has not changed since it was read.
+atomicWriteFile
+    :: (MonadUnliftIO m)
+    => FileSystem m
+    -> FilePath
+    -> Text
+    -> Text
+    -> m AtomicWriteResult
+atomicWriteFile FileSystem{..} path expectedContent newContent = do
+    permissions <- fsGetPermissions path
+    bracketOnError
+        (fsWriteTempFile (takeDirectory path) newContent)
+        cleanup
+        $ \temporaryPath -> do
+            fsSetPermissions temporaryPath permissions
+            currentContent <- fsLoadFile path
+            if currentContent /= expectedContent
+                then cleanup temporaryPath $> AtomicWriteConflict
+                else do
+                    fsRenameFile temporaryPath path
+                    pure AtomicWriteSuccess
+  where
+    cleanup temporaryPath = void . tryAny $ fsRemoveFile temporaryPath
+
 -- | Writes UTF-8 content to a unique temporary file in the given directory.
 writeTempFile :: (MonadIO m) => WriteTempFileFn m
 writeTempFile directory content =
     liftIO
         $ bracketOnError
-            (openBinaryTempFile directory ".headroom-init.tmp")
+            (openBinaryTempFile directory ".headroom.tmp")
             cleanup
             writeContent
   where

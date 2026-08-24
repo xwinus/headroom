@@ -10,9 +10,11 @@ where
 import Headroom.Data.Regex (re)
 import Headroom.IO.FileSystem
 import RIO
+import qualified RIO.Directory as D
 import RIO.FilePath ((</>))
 import RIO.List (sort)
 import qualified RIO.List as L
+import System.IO.Error (userError)
 import Test.Hspec
 
 spec :: Spec
@@ -64,3 +66,56 @@ spec = do
                     ]
                 expected = ["/hello/world", "xx/yy"]
             excludePaths patterns sample `shouldBe` expected
+
+    describe "atomicWriteFile" $ do
+        it "atomically replaces content and preserves permissions"
+            . withSystemTempDirectory "atomic-write"
+            $ \directory -> do
+                let path = directory </> "source.hs"
+                    fileSystem = mkFileSystem :: FileSystem IO
+                writeFileUtf8 path "original"
+                originalPermissions <- D.getPermissions path
+
+                result <- atomicWriteFile fileSystem path "original" "updated"
+
+                result `shouldBe` AtomicWriteSuccess
+                readFileUtf8 path `shouldReturn` "updated"
+                D.getPermissions path `shouldReturn` originalPermissions
+                D.listDirectory directory `shouldReturn` ["source.hs"]
+
+        it "preserves the original and cleans temporary files when rename fails"
+            . withSystemTempDirectory "atomic-write"
+            $ \directory -> do
+                let path = directory </> "source.hs"
+                    baseFileSystem = mkFileSystem :: FileSystem IO
+                    fileSystem =
+                        baseFileSystem
+                            { fsRenameFile = \_ _ ->
+                                throwIO $ userError "simulated rename failure"
+                            }
+                writeFileUtf8 path "original"
+
+                atomicWriteFile fileSystem path "original" "updated"
+                    `shouldThrow` anyIOException
+
+                readFileUtf8 path `shouldReturn` "original"
+                D.listDirectory directory `shouldReturn` ["source.hs"]
+
+        it "preserves a concurrent change and reports a conflict"
+            . withSystemTempDirectory "atomic-write"
+            $ \directory -> do
+                let path = directory </> "source.hs"
+                    baseFileSystem = mkFileSystem :: FileSystem IO
+                    fileSystem =
+                        baseFileSystem
+                            { fsLoadFile = \target -> do
+                                writeFileUtf8 target "concurrent update"
+                                pure "concurrent update"
+                            }
+                writeFileUtf8 path "original"
+
+                result <- atomicWriteFile fileSystem path "original" "updated"
+
+                result `shouldBe` AtomicWriteConflict
+                readFileUtf8 path `shouldReturn` "concurrent update"
+                D.listDirectory directory `shouldReturn` ["source.hs"]

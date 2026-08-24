@@ -23,6 +23,7 @@ import Headroom.Config.Types
     , HeaderSyntax (..)
     , PostProcessConfig (..)
     , PostProcessConfigs (..)
+    , RunMode (..)
     , UpdateCopyrightConfig (..)
     )
 import Headroom.Data.EnumExtra (EnumExtra (..))
@@ -34,7 +35,10 @@ import Headroom.Data.Lens
 import Headroom.Data.Regex (re)
 import Headroom.Data.Text (fromLines)
 import Headroom.FileType.Types (FileType (..))
-import Headroom.IO.FileSystem (FileSystem (..))
+import Headroom.IO.FileSystem
+    ( FileSystem (..)
+    , mkFileSystem
+    )
 import Headroom.IO.Network (Network (..))
 import Headroom.Meta (TemplateType)
 import Headroom.Template (Template (..))
@@ -43,6 +47,8 @@ import Headroom.Template.TemplateRef (TemplateRef (..))
 import Headroom.Types (CurrentYear (..))
 import Headroom.Variables (mkVariables)
 import RIO hiding (assert)
+import qualified RIO.Directory as D
+import RIO.FilePath ((</>))
 import qualified RIO.Map as M
 import qualified RIO.NonEmpty as NE
 import qualified RIO.Text as T
@@ -137,6 +143,35 @@ spec = do
             runRIO env (postProcessHeader' @Mustache syntax vars sample)
                 `shouldReturn` expected
 
+    describe "writeSourceFile" $ do
+        it "does not access the filesystem during a dry run" $ do
+            runRIO env (writeSourceFile True Add True "source.hs" "old" "new")
+                `shouldReturn` ()
+
+        it "does not access the filesystem in check mode" $ do
+            runRIO env (writeSourceFile False Check True "source.hs" "old" "new")
+                `shouldReturn` ()
+
+        it "reports a concurrent change without overwriting it"
+            . withSystemTempDirectory "source-write"
+            $ \directory -> do
+                let path = directory </> "source.hs"
+                    baseFileSystem = mkFileSystem :: FileSystem (RIO TestEnv)
+                    fileSystem =
+                        baseFileSystem
+                            { fsLoadFile = \target -> do
+                                writeFileUtf8 target "concurrent update"
+                                pure "concurrent update"
+                            }
+                    testEnv = env & envFileSystemL .~ fileSystem
+                writeFileUtf8 path "original"
+
+                runRIO testEnv (writeSourceFile False Add True path "original" "updated")
+                    `shouldThrow` (== SourceFileChanged path)
+
+                readFileUtf8 path `shouldReturn` "concurrent update"
+                D.listDirectory directory `shouldReturn` ["source.hs"]
+
 env :: TestEnv
 env = TestEnv{..}
   where
@@ -151,12 +186,14 @@ env = TestEnv{..}
             , fsFindFilesByExts = undefined
             , fsFindFilesByTypes = undefined
             , fsGetCurrentDirectory = undefined
+            , fsGetPermissions = undefined
             , fsGetUserDirectory = undefined
             , fsListFiles = undefined
             , fsLoadFile = undefined
             , fsRemoveDirectory = undefined
             , fsRemoveFile = undefined
             , fsRenameFile = undefined
+            , fsSetPermissions = undefined
             , fsWriteTempFile = undefined
             , fsWriteFile = undefined
             }
