@@ -14,6 +14,7 @@ import Headroom.Template.TemplateRef (TemplateRef (..))
 import Headroom.Variables (mkVariables)
 import RIO
 import Test.Hspec
+import qualified Text.Mustache.Types as MU
 
 spec :: Spec
 spec = do
@@ -39,6 +40,33 @@ spec = do
                     True
                 err _ = False
             (parsed >>= renderTemplate variables) `shouldThrow` err
+
+        it "reports the complete path of a missing dotted variable" $ do
+            let template = "Hello, {{ user.name }}"
+                parsed = parseTemplate @Mustache (InlineRef template) template
+                err (MissingVariables _ ["user.name"]) = True
+                err _ = False
+
+            (parsed >>= renderTemplate mempty) `shouldThrow` err
+
+        it "reports multiple simple and dotted missing variables in order" $ do
+            let template = "{{ user.name }} {{ company }} {{ address.city }}"
+                parsed = parseTemplate @Mustache (InlineRef template) template
+                err (MissingVariables _ ["user.name", "company", "address.city"]) = True
+                err _ = False
+
+            (parsed >>= renderTemplate mempty) `shouldThrow` err
+
+        it "renders a valid dotted variable" $ do
+            let template = "Hello, {{ user.name }}"
+                parsed = parseTemplate @Mustache (InlineRef template) template
+                variables =
+                    MU.object
+                        [ "user" MU.~> MU.object ["name" MU.~> ("John" :: Text)]
+                        ]
+                rendered = parsed >>= renderMustache variables
+
+            rendered `shouldBe` Just "Hello, John"
 
         it "renders template with conditionally set variable" $ do
             let template = "Foo {{#bar}}{{bar}}{{/bar}}{{^bar}}BAR{{/bar}}"
