@@ -15,6 +15,7 @@
 module Headroom.IO.FileSystem
     ( -- * Type Aliases
       CreateDirectoryFn
+    , DoesDirectoryExistFn
     , DoesFileExistFn
     , FindFilesFn
     , FindFilesByExtsFn
@@ -23,6 +24,10 @@ module Headroom.IO.FileSystem
     , GetUserDirectoryFn
     , ListFilesFn
     , LoadFileFn
+    , RemoveDirectoryFn
+    , RemoveFileFn
+    , RenameFileFn
+    , WriteTempFileFn
     , WriteFileFn
 
       -- * Polymorphic Record
@@ -52,6 +57,7 @@ import Headroom.Data.Regex
 import Headroom.FileType (listExtensions)
 import Headroom.FileType.Types (FileType)
 import RIO
+import qualified RIO.ByteString as B
 import RIO.Directory
     ( createDirectoryIfMissing
     , doesDirectoryExist
@@ -59,6 +65,9 @@ import RIO.Directory
     , getCurrentDirectory
     , getDirectoryContents
     , getHomeDirectory
+    , removeDirectory
+    , removeFile
+    , renameFile
     )
 import RIO.FilePath
     ( isExtensionOf
@@ -67,6 +76,7 @@ import RIO.FilePath
     )
 import qualified RIO.List as L
 import qualified RIO.Text as T
+import System.IO (openBinaryTempFile)
 
 --------------------------------  TYPE ALIASES  --------------------------------
 
@@ -76,6 +86,9 @@ type CreateDirectoryFn m =
     -- ^ path of new directory
     -> m ()
     -- ^ /IO/ action result
+
+-- | Type of a function that checks whether a directory exists.
+type DoesDirectoryExistFn m = FilePath -> m Bool
 
 -- | Type of a function that returns 'True' if the argument file exists and is
 -- not a directory, and 'False' otherwise.
@@ -140,6 +153,18 @@ type LoadFileFn m =
     -> m Text
     -- ^ file content
 
+-- | Type of a function that removes an empty directory.
+type RemoveDirectoryFn m = FilePath -> m ()
+
+-- | Type of a function that removes a file.
+type RemoveFileFn m = FilePath -> m ()
+
+-- | Type of a function that renames a file.
+type RenameFileFn m = FilePath -> FilePath -> m ()
+
+-- | Type of a function that writes content to a unique temporary file.
+type WriteTempFileFn m = FilePath -> Text -> m FilePath
+
 -- | Type of a function that writes file content in UTF-8 encoding.
 type WriteFileFn m =
     FilePath
@@ -160,6 +185,8 @@ type WriteFileFn m =
 data FileSystem m = FileSystem
     { fsCreateDirectory :: CreateDirectoryFn m
     -- ^ Function that creates new empty directory on the given path.
+    , fsDoesDirectoryExist :: DoesDirectoryExistFn m
+    -- ^ Function that returns whether the given directory exists.
     , fsDoesFileExist :: DoesFileExistFn m
     -- ^ Function that returns 'True' if the argument file exists and is not
     -- a directory, and 'False' otherwise.
@@ -179,6 +206,14 @@ data FileSystem m = FileSystem
     -- is passed instead of directory, such file path is returned.
     , fsLoadFile :: LoadFileFn m
     -- ^ Function that loads file content in UTF-8 encoding.
+    , fsRemoveDirectory :: RemoveDirectoryFn m
+    -- ^ Function that removes an empty directory.
+    , fsRemoveFile :: RemoveFileFn m
+    -- ^ Function that removes a file.
+    , fsRenameFile :: RenameFileFn m
+    -- ^ Function that renames a file.
+    , fsWriteTempFile :: WriteTempFileFn m
+    -- ^ Function that writes content to a unique temporary file.
     , fsWriteFile :: WriteFileFn m
     -- ^ Function that writes file content in UTF-8 encoding.
     }
@@ -188,6 +223,7 @@ mkFileSystem :: (MonadIO m) => FileSystem m
 mkFileSystem =
     FileSystem
         { fsCreateDirectory = createDirectoryIfMissing True
+        , fsDoesDirectoryExist = doesDirectoryExist
         , fsDoesFileExist = doesFileExist
         , fsFindFiles = findFiles
         , fsFindFilesByExts = findFilesByExts
@@ -196,6 +232,10 @@ mkFileSystem =
         , fsGetUserDirectory = getHomeDirectory
         , fsListFiles = listFiles
         , fsLoadFile = loadFile
+        , fsRemoveDirectory = removeDirectory
+        , fsRemoveFile = removeFile
+        , fsRenameFile = renameFile
+        , fsWriteTempFile = writeTempFile
         , fsWriteFile = writeFileUtf8
         }
 
@@ -247,6 +287,23 @@ fileExtension _ = Nothing
 -- | Loads file content in UTF8 encoding.
 loadFile :: (MonadIO m) => LoadFileFn m
 loadFile = readFileUtf8
+
+-- | Writes UTF-8 content to a unique temporary file in the given directory.
+writeTempFile :: (MonadIO m) => WriteTempFileFn m
+writeTempFile directory content =
+    liftIO
+        $ bracketOnError
+            (openBinaryTempFile directory ".headroom-init.tmp")
+            cleanup
+            writeContent
+  where
+    cleanup (path, fileHandle) = do
+        void $ tryIO (hClose fileHandle)
+        void $ tryIO (removeFile path)
+    writeContent (path, fileHandle) = do
+        B.hPut fileHandle $ encodeUtf8 content
+        hClose fileHandle
+        pure path
 
 -- | Takes list of patterns and file paths and returns list of file paths where
 -- those matching the given patterns are excluded.

@@ -21,6 +21,8 @@ This command will automatically scan source code directories for supported file 
 1. `.headroom.yaml` configuration file with correctly set path to template files, source codes and will contain dummy values for variables.
 1. `headroom-templates/` directory which contains template files for all known file types you use in your project and for open source license you choose.
 
+Initialization never overwrites existing configuration or template files. Before writing anything, Headroom checks every target file and aborts if any of them already exists. Files are staged first, so a later write failure is rolled back instead of leaving a partially initialized project.
+
 Now the project structure will be following:
 
 ```
