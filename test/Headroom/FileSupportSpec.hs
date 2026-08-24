@@ -6,6 +6,7 @@ module Headroom.FileSupportSpec
     )
 where
 
+import Headroom.Data.Text (fromLines)
 import Headroom.FileSupport
 import Headroom.FileType.Types (FileType (..))
 import Headroom.IO.FileSystem (loadFile)
@@ -22,6 +23,64 @@ spec = do
     let codeSamples = "test-data" </> "code-samples"
 
     describe "analyzeSourceCode" $ do
+        describe "block comment state" $ do
+            forM_ cStyleFileTypes $ \fileType ->
+                it ("closes a " <> show fileType <> " comment before trailing code") $ do
+                    let sample = fromLines ["/* comment", " */ int x;", "int y;"]
+                        expected =
+                            SourceCode
+                                [ (Comment, "/* comment")
+                                , (Comment, " */ int x;")
+                                , (Code, "int y;")
+                                ]
+                    analyzeSourceCode (fileSupport fileType) sample `shouldBe` expected
+
+            forM_ [HTML, XML] $ \fileType ->
+                it ("closes a " <> show fileType <> " comment before trailing markup") $ do
+                    let sample = fromLines ["<!-- comment", " --> <root>", "<root />"]
+                        expected =
+                            SourceCode
+                                [ (Comment, "<!-- comment")
+                                , (Comment, " --> <root>")
+                                , (Code, "<root />")
+                                ]
+                    analyzeSourceCode (fileSupport fileType) sample `shouldBe` expected
+
+            forM_ [Haskell, PureScript] $ \fileType ->
+                it ("closes a " <> show fileType <> " comment after punctuation") $ do
+                    let sample =
+                            fromLines
+                                [ "{- comment"
+                                , "punctuation! -} value = 1"
+                                , "next = 2"
+                                ]
+                        expected =
+                            SourceCode
+                                [ (Comment, "{- comment")
+                                , (Comment, "punctuation! -} value = 1")
+                                , (Code, "next = 2")
+                                ]
+                    analyzeSourceCode (fileSupport fileType) sample `shouldBe` expected
+
+            it "ignores an unmatched comment end without corrupting later state" $ do
+                let sample =
+                        fromLines
+                            [ "*/ unmatched"
+                            , "/* valid"
+                            , " * comment"
+                            , " */"
+                            , "int x;"
+                            ]
+                    expected =
+                        SourceCode
+                            [ (Code, "*/ unmatched")
+                            , (Comment, "/* valid")
+                            , (Comment, " * comment")
+                            , (Comment, " */")
+                            , (Code, "int x;")
+                            ]
+                analyzeSourceCode (fileSupport C) sample `shouldBe` expected
+
         it "analyzes C source code" $ do
             sample <- loadFile $ codeSamples </> "c" </> "sample1.c"
             let expected =
@@ -401,3 +460,17 @@ spec = do
                         , (Code, "</html>")
                         ]
             analyzeSourceCode (fileSupport XML) sample `shouldBe` expected
+  where
+    cStyleFileTypes =
+        [ C
+        , CPP
+        , CSS
+        , Dart
+        , Go
+        , Java
+        , JS
+        , Kotlin
+        , PHP
+        , Rust
+        , Scala
+        ]
