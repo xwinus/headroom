@@ -30,6 +30,7 @@ module Headroom.Command.Run
     ( CommandRunError (..)
     , commandRun
     , loadTemplateRefs
+    , loadTemplates
     , typeOfTemplate
     , writeSourceFile
 
@@ -80,9 +81,7 @@ import Headroom.Data.Lens
     ( suffixLenses
     , suffixLensesFor
     )
-import Headroom.Embedded
-    ( licenseTemplate
-    )
+import Headroom.Embedded (licenseTemplate)
 import Headroom.FileSupport
     ( analyzeSourceCode
     , fileSupport

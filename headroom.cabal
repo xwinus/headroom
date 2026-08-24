@@ -318,6 +318,7 @@ test-suite spec
   other-modules:
       Headroom.Command.InitSpec
       Headroom.Command.ReadersSpec
+      Headroom.Command.Run.ConfigSpec
       Headroom.Command.RunSpec
       Headroom.Config.CompatSpec
       Headroom.Config.EnrichSpec
