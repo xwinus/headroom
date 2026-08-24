@@ -24,11 +24,13 @@
 -- required files (configuration, templates) for the given project, which are then
 -- required by the @run@ or @gen@ commands.
 module Headroom.Command.Init
-    ( Env (..)
+    ( CommandInitError (..)
+    , Env (..)
     , Paths (..)
     , commandInit
     , doesAppConfigExist
     , findSupportedFileTypes
+    , initializeProject
     )
 where
 
@@ -78,13 +80,12 @@ import Headroom.Types
     ( fromHeadroomError
     , toHeadroomError
     )
-import Headroom.UI
-    ( Progress (..)
-    , zipWithProgress
-    )
 import RIO
 import qualified RIO.Char as C
-import RIO.FilePath ((</>))
+import RIO.FilePath
+    ( takeDirectory
+    , (</>)
+    )
 import qualified RIO.List as L
 import qualified RIO.NonEmpty as NE
 import qualified RIO.Text as T
@@ -103,6 +104,18 @@ data Env = Env
 data Paths = Paths
     { pConfigFile :: FilePath
     , pTemplatesDir :: FilePath
+    }
+
+-- | A file that will be created during project initialization.
+data PlannedFile = PlannedFile
+    { pfTargetPath :: FilePath
+    , pfContent :: Text
+    }
+
+-- | A temporary file ready to be moved to its target path.
+data StagedFile = StagedFile
+    { sfTemporaryPath :: FilePath
+    , sfTargetPath :: FilePath
     }
 
 suffixLenses ''Env
@@ -144,16 +157,29 @@ commandInit
     -- ^ execution result
 commandInit opts =
     bootstrap (env' opts) False
-        $ doesAppConfigExist
-        >>= \case
-            False -> do
-                fileTypes <- findSupportedFileTypes
-                makeTemplatesDir
-                createTemplates fileTypes
-                createConfigFile
-            True -> do
-                paths <- viewL
-                throwM . AppConfigAlreadyExists $ pConfigFile paths
+        $ findSupportedFileTypes
+        >>= initializeProject
+
+-- | Safely initializes the project for the provided file types.
+initializeProject
+    :: ( Has CommandInitOptions env
+       , HasLogFunc env
+       , HasRIO FileSystem env
+       , Has Paths env
+       )
+    => [FileType]
+    -> RIO env ()
+initializeProject fileTypes = do
+    paths <- viewL
+    plannedFiles <- planFiles fileTypes
+    ensureTargetsAvailable plannedFiles
+    bracketOnError
+        (stageFiles (takeDirectory $ pConfigFile paths) plannedFiles)
+        (cleanupFiles . fmap sfTemporaryPath)
+        $ \stagedFiles -> do
+            ensureTargetsAvailable plannedFiles
+            commitFiles (pTemplatesDir paths) stagedFiles
+            logInfo "Project initialization completed"
 
 -- | Recursively scans provided source paths for known file types for which
 -- templates can be generated.
@@ -192,64 +218,124 @@ doesAppConfigExist = do
 
 ------------------------------  PRIVATE FUNCTIONS  -----------------------------
 
-createTemplates
-    :: (Has CommandInitOptions env, HasLogFunc env, Has Paths env)
+planFiles
+    :: (Has CommandInitOptions env, Has Paths env)
     => [FileType]
-    -> RIO env ()
-createTemplates fileTypes = do
+    -> RIO env [PlannedFile]
+planFiles fileTypes = do
     opts <- viewL
-    Paths{..} <- viewL
-    mapM_
-        (\(p, lf) -> createTemplate pTemplatesDir lf p)
-        (zipWithProgress $ fmap (cioLicenseType opts,) fileTypes)
+    paths <- viewL
+    let templates =
+            fmap (planTemplate paths . (cioLicenseType opts,)) fileTypes
+    pure $ templates <> [planConfig opts paths]
 
-createTemplate
-    :: (HasLogFunc env)
-    => FilePath
-    -> (LicenseType, FileType)
-    -> Progress
-    -> RIO env ()
-createTemplate templatesDir (licenseType, fileType) progress = do
+planTemplate :: Paths -> (LicenseType, FileType) -> PlannedFile
+planTemplate Paths{..} (licenseType, fileType) =
     let extension = NE.head $ templateExtensions @TemplateType
         file = (fmap C.toLower . show $ fileType) <> "." <> T.unpack extension
-        filePath = templatesDir </> file
-        template = licenseTemplate licenseType fileType
-    logInfo
-        $ mconcat
-            [display progress, " Creating template file in ", fromString filePath]
-    writeFileUtf8 filePath template
+     in PlannedFile
+            { pfTargetPath = pTemplatesDir </> file
+            , pfContent = licenseTemplate licenseType fileType
+            }
 
-createConfigFile
-    :: (Has CommandInitOptions env, HasLogFunc env, Has Paths env)
-    => RIO env ()
-createConfigFile = do
-    opts <- viewL
-    p@Paths{..} <- viewL
-    logInfo $ "Creating YAML config file in " <> fromString pConfigFile
-    writeFileUtf8 pConfigFile $ enrich (modify opts p) configFileStub
+planConfig :: CommandInitOptions -> Paths -> PlannedFile
+planConfig opts Paths{..} =
+    PlannedFile
+        { pfTargetPath = pConfigFile
+        , pfContent = enrich (modify opts) configFileStub
+        }
   where
-    modify opts paths =
+    modify options =
         mconcat
             [ replaceEmptyValue "version" $ withText (printVersion buildVersion)
-            , replaceEmptyValue "source-paths" $ withArray (cioSourcePaths opts)
-            , replaceEmptyValue "template-paths" $ withArray [pTemplatesDir paths]
+            , replaceEmptyValue "source-paths" $ withArray (cioSourcePaths options)
+            , replaceEmptyValue "template-paths" $ withArray [pTemplatesDir]
             ]
 
-makeTemplatesDir
-    :: (HasLogFunc env, HasRIO FileSystem env, Has Paths env)
-    => RIO env ()
-makeTemplatesDir = do
+ensureTargetsAvailable
+    :: (HasRIO FileSystem env)
+    => [PlannedFile]
+    -> RIO env ()
+ensureTargetsAvailable plannedFiles = do
     FileSystem{..} <- viewL
-    Paths{..} <- viewL
-    logInfo $ "Creating directory for templates in " <> fromString pTemplatesDir
-    fsCreateDirectory pTemplatesDir
+    existingPaths <-
+        filterM
+            (\path -> (||) <$> fsDoesFileExist path <*> fsDoesDirectoryExist path)
+            $ pfTargetPath
+            <$> plannedFiles
+    case existingPaths of
+        [] -> pure ()
+        path : paths ->
+            throwM . InitializationFileAlreadyExists $ path :| paths
+
+stageFiles
+    :: (HasLogFunc env, HasRIO FileSystem env)
+    => FilePath
+    -> [PlannedFile]
+    -> RIO env [StagedFile]
+stageFiles _ [] = pure []
+stageFiles stagingDirectory (PlannedFile{..} : remainingFiles) = do
+    FileSystem{..} <- viewL
+    logInfo $ "Staging initialization file for " <> fromString pfTargetPath
+    bracketOnError
+        (fsWriteTempFile stagingDirectory pfContent)
+        (cleanupFiles . pure)
+        $ \temporaryPath -> do
+            remainingStaged <- stageFiles stagingDirectory remainingFiles
+            pure $ StagedFile temporaryPath pfTargetPath : remainingStaged
+
+commitFiles
+    :: (HasLogFunc env, HasRIO FileSystem env)
+    => FilePath
+    -> [StagedFile]
+    -> RIO env ()
+commitFiles templatesDirectory stagedFiles = do
+    mask_ $ do
+        FileSystem{..} <- viewL
+        directoryExisted <- fsDoesDirectoryExist templatesDirectory
+        fsCreateDirectory templatesDirectory
+            `onException` cleanupDirectory directoryExisted templatesDirectory
+        moveFiles directoryExisted [] stagedFiles
+  where
+    moveFiles _ _ [] = pure ()
+    moveFiles
+        directoryExisted
+        committedPaths
+        remaining@(stagedFile : rest) = do
+            FileSystem{..} <- viewL
+            let temporaryPath = sfTemporaryPath stagedFile
+                targetPath = sfTargetPath stagedFile
+            logInfo $ "Creating initialization file in " <> fromString targetPath
+            result <- tryAny $ fsRenameFile temporaryPath targetPath
+            case result of
+                Right () ->
+                    moveFiles directoryExisted (targetPath : committedPaths) rest
+                Left err -> do
+                    cleanupFiles committedPaths
+                    cleanupFiles $ fmap sfTemporaryPath remaining
+                    cleanupDirectory directoryExisted templatesDirectory
+                    throwM err
+
+cleanupFiles :: (HasRIO FileSystem env) => [FilePath] -> RIO env ()
+cleanupFiles paths = do
+    FileSystem{..} <- viewL
+    forM_ paths $ \path -> void . tryAny $ fsRemoveFile path
+
+cleanupDirectory
+    :: (HasRIO FileSystem env)
+    => Bool
+    -> FilePath
+    -> RIO env ()
+cleanupDirectory existed path = unless existed $ do
+    FileSystem{..} <- viewL
+    void . tryAny $ fsRemoveDirectory path
 
 ---------------------------------  ERROR TYPES  --------------------------------
 
 -- | Exception specific to the "Headroom.Command.Init" module
 data CommandInitError
-    = -- | application configuration file already exists
-      AppConfigAlreadyExists FilePath
+    = -- | one or more initialization target files already exist
+      InitializationFileAlreadyExists (NonEmpty FilePath)
     | -- | no paths to source code files provided
       NoProvidedSourcePaths
     | -- | no supported file types found on source paths
@@ -263,9 +349,10 @@ instance Exception CommandInitError where
 
 displayException' :: CommandInitError -> String
 displayException' = \case
-    AppConfigAlreadyExists path ->
+    InitializationFileAlreadyExists paths ->
         [iii|
-      Configuration file '#{path}' already exists
+      Cannot initialize project because these files already exist:
+      #{T.unlines $ T.pack . ("- " <>) <$> NE.toList paths}
     |]
     NoProvidedSourcePaths ->
         [iii|

@@ -52,6 +52,7 @@ env =
         { envFileSystem =
             FileSystem
                 { fsCreateDirectory = undefined
+                , fsDoesDirectoryExist = undefined
                 , fsDoesFileExist = undefined
                 , fsFindFiles = undefined
                 , fsFindFilesByExts = undefined
@@ -60,6 +61,10 @@ env =
                 , fsGetUserDirectory = undefined
                 , fsListFiles = undefined
                 , fsLoadFile = undefined
+                , fsRemoveDirectory = undefined
+                , fsRemoveFile = undefined
+                , fsRenameFile = undefined
+                , fsWriteTempFile = undefined
                 , fsWriteFile = undefined
                 }
         }
