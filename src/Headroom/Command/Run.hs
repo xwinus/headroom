@@ -27,9 +27,11 @@
 -- Module representing the @run@ command, the core command of /Headroom/, which is
 -- responsible for license header management.
 module Headroom.Command.Run
-    ( commandRun
+    ( CommandRunError (..)
+    , commandRun
     , loadTemplateRefs
     , typeOfTemplate
+    , writeSourceFile
 
       -- * License Header Post-processing
     , postProcessHeader'
@@ -41,14 +43,7 @@ import Data.String.Interpolate
     ( i
     , iii
     )
-import Data.Time.Calendar (toGregorian)
-import Data.Time.Clock (getCurrentTime)
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Time.LocalTime
-    ( getCurrentTimeZone
-    , localDay
-    , utcToLocalTime
-    )
 import Data.VCS.Ignore
     ( Git
     , Repo (..)
@@ -59,19 +54,21 @@ import Headroom.Command.Bootstrap
     , globalKVStore
     , runRIO'
     )
-import Headroom.Command.Types (CommandRunOptions (..))
-import Headroom.Config
-    ( loadAppConfig
-    , makeAppConfig
-    , parseAppConfig
+import Headroom.Command.Run.Config
+    ( currentYear
+    , finalConfiguration
     )
+import Headroom.Command.Run.Write
+    ( CommandRunError (..)
+    , writeSourceFile
+    )
+import Headroom.Command.Types (CommandRunOptions (..))
 import Headroom.Config.Types
     ( AppConfig (..)
     , CtAppConfig
     , CtPostProcessConfigs
     , HeaderConfig (..)
     , HeaderSyntax (..)
-    , PtAppConfig
     , RunMode (..)
     )
 import Headroom.Data.EnumExtra (EnumExtra (..))
@@ -84,8 +81,7 @@ import Headroom.Data.Lens
     , suffixLensesFor
     )
 import Headroom.Embedded
-    ( defaultConfig
-    , licenseTemplate
+    ( licenseTemplate
     )
 import Headroom.FileSupport
     ( analyzeSourceCode
@@ -118,7 +114,6 @@ import Headroom.IO.Network
     )
 import Headroom.Meta
     ( TemplateType
-    , configFileName
     )
 import Headroom.PostProcess
     ( mkConfiguredEnv
@@ -142,7 +137,6 @@ import Headroom.UI.Table (Table2 (..))
 import Headroom.Variables
     ( compileVariables
     , dynamicVariables
-    , parseVariables
     )
 import Headroom.Variables.Types (Variables (..))
 import RIO
@@ -156,31 +150,20 @@ suffixLensesFor ["acPostProcessConfigs"] ''AppConfig
 -- | Action to be performed based on the selected 'RunMode'.
 data RunAction = RunAction
     { raProcessed :: Bool
-    -- ^ whether the given file was processed
     , raFunc :: SourceCode -> SourceCode
-    -- ^ function to process the file
     , raProcessedMsg :: Text
-    -- ^ message to show when file was processed
     , raSkippedMsg :: Text
-    -- ^ message to show when file was skipped
     }
 
 -- | Full /RIO/ environment for the /Run/ command.
 data Env = Env
     { envLogFunc :: LogFunc
-    -- ^ logging function
     , envRunOptions :: CommandRunOptions
-    -- ^ options
     , envConfiguration :: ~CtAppConfig
-    -- ^ application configuration
     , envCurrentYear :: CurrentYear
-    -- ^ current year
     , envKVStore :: ~(KVStore (RIO Env))
-    -- ^ key-value store
     , envNetwork :: Network (RIO Env)
-    -- ^ network operations
     , envFileSystem :: FileSystem (RIO Env)
-    -- ^ file system operations
     }
 
 suffixLenses ''Env
@@ -226,7 +209,6 @@ getEnv opts logFunc = do
     kvStore <- runRIO env0 globalKVStore
     pure env0{envConfiguration = config, envKVStore = kvStore}
 
--- | Handler for /Run/ command.
 commandRun
     :: CommandRunOptions
     -- ^ /Run/ command options
@@ -316,6 +298,7 @@ processSourceFiles
        , Has CommandRunOptions env
        , Has CurrentYear env
        , HasLogFunc env
+       , HasRIO FileSystem env
        )
     => Map FileType HeaderTemplate
     -> [FilePath]
@@ -341,6 +324,7 @@ processSourceFile
        , Has CtPostProcessConfigs env
        , Has CurrentYear env
        , HasLogFunc env
+       , HasRIO FileSystem env
        )
     => Variables
     -> Variables
@@ -351,7 +335,8 @@ processSourceFile
 processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
     AppConfig{..} <- viewL @CtAppConfig
     CommandRunOptions{..} <- viewL
-    fileContent <- readFileUtf8 path
+    FileSystem{..} <- viewL
+    fileContent <- fsLoadFile path
     let fs = fileSupport htFileType
         source = analyzeSourceCode fs fileContent
         headerInfo@HeaderInfo{..} = extractHeaderInfo ht source
@@ -364,12 +349,15 @@ processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
         changed = raProcessed && (source /= result)
         message = if changed then raProcessedMsg else raSkippedMsg
         logFn = if changed then logInfo else logSticky
-        isCheck = acRunMode == Check
     logDebug $ "Header info: " <> displayShow headerInfo
     logFn $ mconcat [display progress, " ", display message, fromString path]
-    when
-        (not croDryRun && not isCheck && changed)
-        (writeFileUtf8 path $ toText result)
+    writeSourceFile
+        croDryRun
+        acRunMode
+        changed
+        path
+        fileContent
+        (toText result)
     pure changed
 
 chooseAction :: (Has CtAppConfig env) => HeaderInfo -> Text -> RIO env RunAction
@@ -485,71 +473,6 @@ typeOfTemplate path = do
         (isNothing fileType)
         (logWarn $ "Skipping unrecognized template type: " <> fromString path)
     pure fileType
-
-loadConfigurationSafe
-    :: (HasLogFunc env)
-    => FilePath
-    -> RIO env (Maybe PtAppConfig)
-loadConfigurationSafe path = catch (Just <$> loadAppConfig path) onError
-  where
-    onError err = do
-        logDebug $ displayShow (err :: IOException)
-        logInfo
-            $ mconcat
-                [ "Configuration file '"
-                , fromString path
-                , "' not found. You can either specify all required parameter by "
-                , "command line arguments, or generate one using "
-                , "'headroom gen -c >"
-                , configFileName
-                , "'. See official documentation "
-                , "for more details."
-                ]
-        pure Nothing
-
-finalConfiguration
-    :: (HasLogFunc env, Has CommandRunOptions env)
-    => RIO env CtAppConfig
-finalConfiguration = do
-    defaultConfig' <- Just <$> parseAppConfig defaultConfig
-    cmdLineConfig <- Just <$> optionsToConfiguration
-    yamlConfig <- loadConfigurationSafe configFileName
-    let mergedConfig =
-            mconcat . catMaybes $ [defaultConfig', yamlConfig, cmdLineConfig]
-    config <- makeAppConfig mergedConfig
-    logDebug $ "Default config: " <> displayShow defaultConfig'
-    logDebug $ "YAML config: " <> displayShow yamlConfig
-    logDebug $ "CmdLine config: " <> displayShow cmdLineConfig
-    logDebug $ "Merged config: " <> displayShow mergedConfig
-    logDebug $ "Final config: " <> displayShow config
-    pure config
-
-optionsToConfiguration :: (Has CommandRunOptions env) => RIO env PtAppConfig
-optionsToConfiguration = do
-    CommandRunOptions{..} <- viewL
-    variables <- parseVariables croVariables
-    pure
-        AppConfig
-            { acRunMode = maybe mempty pure croRunMode
-            , acSourcePaths = ifNot null croSourcePaths
-            , acExcludedPaths = ifNot null croExcludedPaths
-            , acExcludeIgnoredPaths = ifNot not croExcludeIgnoredPaths
-            , acBuiltInTemplates = pure croBuiltInTemplates
-            , acTemplateRefs = croTemplateRefs
-            , acVariables = variables
-            , acLicenseHeaders = mempty
-            , acPostProcessConfigs = mempty
-            }
-  where
-    ifNot cond value = if cond value then mempty else pure value
-
-currentYear :: (MonadIO m) => m CurrentYear
-currentYear = do
-    now <- liftIO getCurrentTime
-    timezone <- liftIO getCurrentTimeZone
-    let zoneNow = utcToLocalTime timezone now
-        (year, _, _) = toGregorian $ localDay zoneNow
-    pure $ CurrentYear year
 
 -- | Performs post-processing on rendered /license header/, based on given
 -- configuration. Currently the main points are to:

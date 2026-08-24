@@ -179,6 +179,8 @@ library
       Headroom.Command.Init
       Headroom.Command.Readers
       Headroom.Command.Run
+      Headroom.Command.Run.Config
+      Headroom.Command.Run.Write
       Headroom.Command.Types
       Headroom.Command.Utils
       Headroom.Config

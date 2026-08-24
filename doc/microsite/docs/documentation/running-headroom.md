@@ -15,6 +15,8 @@ Let's start with the most useful one. This command allows you to manipulate lice
 1. __check mode__ - checks that all your source code files have up-to-date license headers, without actually touching any files. When any file with outdated license header is detected, Headroom execution will result in return code `1`, so you can easily use this mode in your CI pipelines, etc. 
 1. __drop mode__ - will drop any existing license headers, without replacement.
 
+Changed source files are written through a temporary file in the same directory and replaced atomically. Headroom verifies the original content immediately before replacement; if another process changed the file while it was being processed, the command aborts without overwriting that newer content. Check mode and `--dry-run` never write source files.
+
 #### Command Line Interface
 Below is the overview of command line interface of `run` command:
 

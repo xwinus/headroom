@@ -58,12 +58,14 @@ env =
                 , fsFindFilesByExts = undefined
                 , fsFindFilesByTypes = undefined
                 , fsGetCurrentDirectory = undefined
+                , fsGetPermissions = undefined
                 , fsGetUserDirectory = undefined
                 , fsListFiles = undefined
                 , fsLoadFile = undefined
                 , fsRemoveDirectory = undefined
                 , fsRemoveFile = undefined
                 , fsRenameFile = undefined
+                , fsSetPermissions = undefined
                 , fsWriteTempFile = undefined
                 , fsWriteFile = undefined
                 }
