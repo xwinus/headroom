@@ -70,7 +70,7 @@ syntaxAnalysis :: SyntaxAnalysis
 syntaxAnalysis =
     SyntaxAnalysis
         { saIsCommentStart = isMatch [re|^{-(?!\h*#)|^--|]
-        , saIsCommentEnd = isMatch [re|^\h*-}|\w+\h*-}|^--|]
+        , saIsCommentEnd = isMatch [re|(?<!#)-}|^--|]
         }
 
 extractVariables

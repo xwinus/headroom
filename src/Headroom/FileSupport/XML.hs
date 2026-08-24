@@ -40,5 +40,5 @@ syntaxAnalysis :: SyntaxAnalysis
 syntaxAnalysis =
     SyntaxAnalysis
         { saIsCommentStart = isMatch [re|^<!--|]
-        , saIsCommentEnd = isMatch [re|-->$|]
+        , saIsCommentEnd = isMatch [re|-->|]
         }

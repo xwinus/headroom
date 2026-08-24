@@ -91,16 +91,15 @@ analyzeSourceCode fs = fromText state0 process
     SyntaxAnalysis{..} = fsSyntaxAnalysis fs
     state0 = 0 :: Int
     process (T.strip -> l) = do
-        cs <- get
+        commentDepth <- get
         let isStart = saIsCommentStart
             isEnd = saIsCommentEnd
-            tpe = \c -> if c > 0 then Comment else Code
-            (ns, res) =
+            (nextDepth, lineType) =
                 if
-                    | isStart l && isEnd l -> (cs, Comment)
-                    | isStart l -> (cs + 1, Comment)
-                    | isEnd l -> (cs - 1, tpe cs)
-                    | cs > 0 -> (cs, Comment)
+                    | isStart l && isEnd l -> (commentDepth, Comment)
+                    | isStart l -> (commentDepth + 1, Comment)
+                    | commentDepth > 0 && isEnd l -> (commentDepth - 1, Comment)
+                    | commentDepth > 0 -> (commentDepth, Comment)
                     | otherwise -> (0, Code)
-        put ns
-        pure res
+        put nextDepth
+        pure lineType
