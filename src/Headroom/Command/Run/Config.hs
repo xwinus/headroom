@@ -14,6 +14,7 @@
 module Headroom.Command.Run.Config
     ( currentYear
     , finalConfiguration
+    , finalConfigurationFrom
     )
 where
 
@@ -49,12 +50,19 @@ import RIO
 finalConfiguration
     :: (HasLogFunc env, Has CommandRunOptions env)
     => RIO env CtAppConfig
-finalConfiguration = do
+finalConfiguration = finalConfigurationFrom configFileName
+
+-- | Builds the final run configuration using the given project config path.
+finalConfigurationFrom
+    :: (HasLogFunc env, Has CommandRunOptions env)
+    => FilePath
+    -> RIO env CtAppConfig
+finalConfigurationFrom configPath = do
     defaultConfig' <- Just <$> parseAppConfig defaultConfig
     cmdLineConfig <- Just <$> optionsToConfiguration
-    yamlConfig <- loadConfigurationSafe configFileName
+    yamlConfig <- loadConfigurationSafe configPath
     let mergedConfig =
-            mconcat . catMaybes $ [defaultConfig', yamlConfig, cmdLineConfig]
+            mconcat $ runConfigDefaults : catMaybes [defaultConfig', yamlConfig, cmdLineConfig]
     config <- makeAppConfig mergedConfig
     logDebug $ "Default config: " <> displayShow defaultConfig'
     logDebug $ "YAML config: " <> displayShow yamlConfig
@@ -62,6 +70,10 @@ finalConfiguration = do
     logDebug $ "Merged config: " <> displayShow mergedConfig
     logDebug $ "Final config: " <> displayShow config
     pure config
+
+-- | Defaults that cannot be expressed as missing values in a partial config.
+runConfigDefaults :: PtAppConfig
+runConfigDefaults = mempty{acBuiltInTemplates = pure Nothing}
 
 -- | Obtains the current year in the local time zone.
 currentYear :: (MonadIO m) => m CurrentYear
@@ -103,7 +115,7 @@ optionsToConfiguration = do
             , acSourcePaths = ifNot null croSourcePaths
             , acExcludedPaths = ifNot null croExcludedPaths
             , acExcludeIgnoredPaths = ifNot not croExcludeIgnoredPaths
-            , acBuiltInTemplates = pure croBuiltInTemplates
+            , acBuiltInTemplates = maybe mempty (pure . Just) croBuiltInTemplates
             , acTemplateRefs = croTemplateRefs
             , acVariables = variables
             , acLicenseHeaders = mempty
