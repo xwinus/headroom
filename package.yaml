@@ -96,6 +96,7 @@ tests:
       - headroom
       - hspec
       - modern-uri
+      - mustache
       - mtl
       - pcre-light
       - QuickCheck

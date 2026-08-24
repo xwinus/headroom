@@ -16,6 +16,7 @@
 -- templates.
 module Headroom.Template.Mustache
     ( Mustache (..)
+    , renderMustache
     )
 where
 
@@ -59,14 +60,22 @@ parseTemplate' ref raw =
         Right res -> pure $ Mustache res raw ref
 
 renderTemplate' :: (MonadThrow m) => Variables -> Mustache -> m Text
-renderTemplate' (Variables variables) (Mustache t@(MU.Template name _ _) _ _) =
+renderTemplate' (Variables variables) = renderMustache variables
+
+-- | Renders a template with any context supported by the Mustache library.
+renderMustache
+    :: (MonadThrow m, MU.ToMustache context)
+    => context
+    -> Mustache
+    -> m Text
+renderMustache variables (Mustache t@(MU.Template name _ _) _ _) =
     case MU.checkedSubstitute t variables of
         ([], rendered) -> pure rendered
         (errs, rendered) ->
-            let errs' = missingVariables errs
-                missingVariables = concatMap $ \case
-                    (VariableNotFound ps) -> ps
-                    _ -> []
-             in if length errs == length errs'
-                    then throwM $ MissingVariables (T.pack name) errs'
-                    else pure rendered
+            let missing = mapMaybe missingVariable errs
+                missingVariable = \case
+                    VariableNotFound path -> Just $ T.intercalate "." path
+                    _ -> Nothing
+             in if null missing
+                    then pure rendered
+                    else throwM $ MissingVariables (T.pack name) missing

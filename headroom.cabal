@@ -380,6 +380,7 @@ test-suite spec
     , headroom
     , hspec
     , modern-uri
+    , mustache
     , mtl
     , optparse-applicative
     , pcre-light
