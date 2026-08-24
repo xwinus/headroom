@@ -14,7 +14,7 @@ jobs:
       matrix:
         # os: [ubuntu-latest, macOS-latest, windows-latest]
         os: [ubuntu-latest, macOS-latest]
-        cabal: ["3.6"]
+        cabal: ["3.16.1.0"]
         ghc:
           - "9.6.6"
         # exclude:
@@ -79,8 +79,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        stack: ["2.13.1"]
-        ghc: ["9.6.6"]
+        stack: ["3.11.1"]
+        ghc: ["9.10.3"]
 
     steps:
       - uses: actions/checkout@v4
