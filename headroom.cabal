@@ -1,18 +1,18 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d29d354c65c545533e5805aa91bddec9e52a4a133e2504e2808b6e982f575214
+-- hash: "kb\ETX\b\179C\141\214\193\181\US\SO\150\228\196\157LL\187\241\168\208\DC1\194\227-%\199\&3V\186/"
 
 name:           headroom
 version:        0.5.0.0
 synopsis:       License Header Manager
-description:    Would you like to have nice, up-to-date license/copyright headers in your source code files but hate to manage them by hand? Then Headroom is the right tool for you! Now you can define your license header as Mustache template, put all the variables (such as author's name, year, etc.) into the YAML config file and Headroom will take care to add such license headers to all your source code files.
+description:    Headroom adds, updates, checks, and removes license and copyright headers in source code files. Define headers as Mustache templates, keep their variables in a YAML configuration file, and apply them consistently across your project. Headroom includes templates for popular open source licenses and can detect headers that it did not generate.
 category:       Utils
-homepage:       https://github.com/vaclavsvejcar/headroom
-bug-reports:    https://github.com/vaclavsvejcar/headroom/issues
+homepage:       https://github.com/xwinus/headroom
+bug-reports:    https://github.com/xwinus/headroom/issues
 author:         Vaclav Svejcar
 maintainer:     vaclav.svejcar@gmail.com
 copyright:      Copyright (c) 2019-2022 Vaclav Svejcar
@@ -169,7 +169,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/vaclavsvejcar/headroom
+  location: https://github.com/xwinus/headroom
 
 library
   exposed-modules:
@@ -380,8 +380,8 @@ test-suite spec
     , headroom
     , hspec
     , modern-uri
-    , mustache
     , mtl
+    , mustache
     , optparse-applicative
     , pcre-light
     , rio
