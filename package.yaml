@@ -1,21 +1,20 @@
 name: headroom
 version: 0.5.0.0
-homepage: https://github.com/vaclavsvejcar/headroom
+homepage: https://github.com/xwinus/headroom
 license: BSD-3-Clause
 license-file: LICENSE
 author: Vaclav Svejcar
 maintainer: vaclav.svejcar@gmail.com
 copyright: Copyright (c) 2019-2022 Vaclav Svejcar
-github: vaclavsvejcar/headroom
+github: xwinus/headroom
 category: Utils
 synopsis: License Header Manager
 description: >
-  Would you like to have nice, up-to-date license/copyright headers in your
-  source code files but hate to manage them by hand? Then Headroom is the right
-  tool for you! Now you can define your license header as Mustache template,
-  put all the variables (such as author's name, year, etc.) into the YAML config
-  file and Headroom will take care to add such license headers to all your
-  source code files.
+  Headroom adds, updates, checks, and removes license and copyright headers in
+  source code files. Define headers as Mustache templates, keep their variables
+  in a YAML configuration file, and apply them consistently across your project.
+  Headroom includes templates for popular open source licenses and can detect
+  headers that it did not generate.
 
 extra-source-files:
   - CHANGELOG.md
