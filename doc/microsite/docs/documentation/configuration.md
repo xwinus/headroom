@@ -69,13 +69,13 @@ Not all configuration options can be set/overridden using the command line argum
 | `run-mode: drop`        | `-d`, `--drop-headers`         |		
 | `run-mode: replace`     | `-r`, `--replace-headers`      |	
 | `run-mode: check`       | `-c`, `--check-headers`        |		
-| `source-paths`          | `-s`, `--source-path PATH`     |	
+| `source-paths`          | `-s`, `--source-path PATH`, or positional arguments |	
 | `excluded-paths`        | `-e`, `--excluded-path REGEX`  |	
 | `exclude-ignored-paths` | `--exclude-ignored-paths`      |	
 | `template-paths`        | `-t`, `--template-path PATH`   |
 | `variables`             | `-v`, `--variable "KEY=VALUE"` |
 
-Where `source-path`, `template-path` and `variable` command line arguments can be used multiple times to set more values.
+Where `source-path`, `template-path` and `variable` command line arguments can be used multiple times to set more values. Source paths can be also passed to the `run` command as positional arguments, in which case they're combined with any `-s|--source-path` options.
 
 ### `run-mode` key
 This configuration changes default behaviour of the `run` command. Possible values are `add`, `drop`, `replace` or `check`. For more details, see the [Running Headroom][doc:running-headroom#run-command] chapter.

@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - [#102] FIXED: `builtin-templates` set in YAML configuration is ignored when the CLI option is absent
 - [#104] FIXED: Source files are written non-atomically, so concurrent changes can be lost
 - [#106] FIXED: Missing dotted Mustache variable renders as empty text instead of being reported
+- [#114] Allow passing source paths as positional arguments
 - Bump _LTS Haskell_ to `24.56`
 
 ## 0.4.3.0 (released 2022-01-20)

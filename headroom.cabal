@@ -320,6 +320,7 @@ test-suite spec
       Headroom.Command.ReadersSpec
       Headroom.Command.Run.ConfigSpec
       Headroom.Command.RunSpec
+      Headroom.CommandSpec
       Headroom.Config.CompatSpec
       Headroom.Config.EnrichSpec
       Headroom.Config.GlobalSpec
