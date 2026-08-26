@@ -1,4 +1,4 @@
-Version `0.4.4.0` is minor release that brings some improvements and bugfixes, without any breaking changes in _CLI_ interface or configuration.
+Version `0.5.0.0` is minor release that brings some improvements and bugfixes, without any breaking changes in _CLI_ interface or configuration.
 
 ## New & Noteworthy
 
