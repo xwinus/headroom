@@ -8,7 +8,12 @@ All notable changes to this project will be documented in this file.
 - [#92] Switch to fourmolu source code formatter
 - [#93] FIXED: Haddock module header detection is faulty
 - [#94] Add support for _XML_
-- Bump _LTS Haskell_ to `20.14`
+- [#100] FIXED: Block comment terminator followed by source code isn't detected
+- [#101] FIXED: `init` command overwrites already existing configuration and template files
+- [#102] FIXED: `builtin-templates` set in YAML configuration is ignored when the CLI option is absent
+- [#104] FIXED: Source files are written non-atomically, so concurrent changes can be lost
+- [#106] FIXED: Missing dotted Mustache variable renders as empty text instead of being reported
+- Bump _LTS Haskell_ to `24.56`
 
 ## 0.4.3.0 (released 2022-01-20)
 - [#78] Check automatically for Headroom updates
