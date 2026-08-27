@@ -38,6 +38,8 @@ data FileType
       JS
     | -- | support for /Kotlin/ programming language
       Kotlin
+    | -- | support for /Nix/ programming language
+      Nix
     | -- | support for /PHP/ programming language
       PHP
     | -- | support for /PureScript/ programming language

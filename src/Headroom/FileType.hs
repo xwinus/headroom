@@ -75,6 +75,7 @@ configByFileType HeadersConfig{..} fileType = case fileType of
     Java -> hscJava
     JS -> hscJs
     Kotlin -> hscKotlin
+    Nix -> hscNix
     PHP -> hscPhp
     PureScript -> hscPureScript
     Python -> hscPython

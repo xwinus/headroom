@@ -36,6 +36,7 @@ extra-source-files:
     embedded/license/apache2/java.mustache
     embedded/license/apache2/js.mustache
     embedded/license/apache2/kotlin.mustache
+    embedded/license/apache2/nix.mustache
     embedded/license/apache2/php.mustache
     embedded/license/apache2/purescript.mustache
     embedded/license/apache2/python.mustache
@@ -53,6 +54,7 @@ extra-source-files:
     embedded/license/bsd3/java.mustache
     embedded/license/bsd3/js.mustache
     embedded/license/bsd3/kotlin.mustache
+    embedded/license/bsd3/nix.mustache
     embedded/license/bsd3/php.mustache
     embedded/license/bsd3/purescript.mustache
     embedded/license/bsd3/python.mustache
@@ -70,6 +72,7 @@ extra-source-files:
     embedded/license/gpl2/java.mustache
     embedded/license/gpl2/js.mustache
     embedded/license/gpl2/kotlin.mustache
+    embedded/license/gpl2/nix.mustache
     embedded/license/gpl2/php.mustache
     embedded/license/gpl2/purescript.mustache
     embedded/license/gpl2/python.mustache
@@ -87,6 +90,7 @@ extra-source-files:
     embedded/license/gpl3/java.mustache
     embedded/license/gpl3/js.mustache
     embedded/license/gpl3/kotlin.mustache
+    embedded/license/gpl3/nix.mustache
     embedded/license/gpl3/php.mustache
     embedded/license/gpl3/purescript.mustache
     embedded/license/gpl3/python.mustache
@@ -104,6 +108,7 @@ extra-source-files:
     embedded/license/mit/java.mustache
     embedded/license/mit/js.mustache
     embedded/license/mit/kotlin.mustache
+    embedded/license/mit/nix.mustache
     embedded/license/mit/php.mustache
     embedded/license/mit/purescript.mustache
     embedded/license/mit/python.mustache
@@ -121,6 +126,7 @@ extra-source-files:
     embedded/license/mpl2/java.mustache
     embedded/license/mpl2/js.mustache
     embedded/license/mpl2/kotlin.mustache
+    embedded/license/mpl2/nix.mustache
     embedded/license/mpl2/php.mustache
     embedded/license/mpl2/purescript.mustache
     embedded/license/mpl2/python.mustache
@@ -150,6 +156,7 @@ extra-source-files:
     test-data/code-samples/js/sample1.js
     test-data/code-samples/js/sample2.js
     test-data/code-samples/kotlin/sample1.kt
+    test-data/code-samples/nix/sample1.nix
     test-data/code-samples/php/sample1.php
     test-data/code-samples/purescript/full.purs
     test-data/code-samples/python/sample1.py
@@ -210,6 +217,7 @@ library
       Headroom.FileSupport.Java
       Headroom.FileSupport.JS
       Headroom.FileSupport.Kotlin
+      Headroom.FileSupport.Nix
       Headroom.FileSupport.PHP
       Headroom.FileSupport.PureScript
       Headroom.FileSupport.Python
@@ -344,6 +352,7 @@ test-suite spec
       Headroom.FileSupport.JavaSpec
       Headroom.FileSupport.JSSpec
       Headroom.FileSupport.KotlinSpec
+      Headroom.FileSupport.NixSpec
       Headroom.FileSupport.PHPSpec
       Headroom.FileSupport.PureScriptSpec
       Headroom.FileSupport.PythonSpec

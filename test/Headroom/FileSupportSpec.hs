@@ -470,6 +470,7 @@ spec = do
         , Java
         , JS
         , Kotlin
+        , Nix
         , PHP
         , Rust
         , Scala
