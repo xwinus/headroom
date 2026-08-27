@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 - [#92] Switch to fourmolu source code formatter
 - [#93] FIXED: Haddock module header detection is faulty
 - [#94] Add support for _XML_
+- [#98] Add support for _Nix_
 - [#100] FIXED: Block comment terminator followed by source code isn't detected
 - [#101] FIXED: `init` command overwrites already existing configuration and template files
 - [#102] FIXED: `builtin-templates` set in YAML configuration is ignored when the CLI option is absent

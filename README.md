@@ -85,7 +85,7 @@ Headroom includes templates for these licenses:
 | MIT | `mit` |
 | Mozilla Public License 2.0 | `mpl2` |
 
-Supported file types include C, C++, CSS, Dart, Go, Haskell, HTML, Java, JavaScript, Kotlin, PHP, PureScript, Python, Rust, Scala, Shell, and XML. See the [configuration reference][doc:configuration] for extensions and file-type-specific options.
+Supported file types include C, C++, CSS, Dart, Go, Haskell, HTML, Java, JavaScript, Kotlin, Nix, PHP, PureScript, Python, Rust, Scala, Shell, and XML. See the [configuration reference][doc:configuration] for extensions and file-type-specific options.
 
 ## Installation
 

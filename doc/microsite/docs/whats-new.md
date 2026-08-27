@@ -18,6 +18,9 @@ print("This line will be printed.")
 
 At this moment, only basic support is present (i.e. no _dynamic variables_ are extracted from the header), but this might change in future releases.
 
+### Support for Nix language
+This version adds support for managing license/copyright headers in `.nix` source files. The default templates use `#` line comments, while source analysis also recognizes `/* ... */` block comments. For executable `nix-shell` files, headers are placed after all leading `#!` directives.
+
 ### Global Configuration
 Since this release, apart from usual per-project configuration that _Headroom_ uses (`.headroom.yaml` files), it also adds _global configuration_, stored in user's home directory (`~/.headroom`), where some global config values can be changed, such as how often (and if) _Headroom_ should check for updates. See [Configuration Overview][doc:configuration] chapter for more details.
 

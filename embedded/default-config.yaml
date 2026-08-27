@@ -227,6 +227,18 @@ license-headers:
       starts-with: ^\/\*
       ends-with: \*\/$
 
+  ## Nix configuration
+  nix:
+    file-extensions: ["nix"]
+    margin-top-code: 1
+    margin-top-file: 0
+    margin-bottom-code: 1
+    margin-bottom-file: 0
+    put-after: ["^#!"]
+    put-before: []
+    line-comment:
+      prefixed-by: ^#
+
   ## PHP configuration
   php:
     file-extensions: ["php"]

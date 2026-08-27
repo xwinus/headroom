@@ -129,6 +129,7 @@ makeHeadersConfig pt = do
     hscJava <- makeHeaderConfig Java (hscJava pt)
     hscJs <- makeHeaderConfig JS (hscJs pt)
     hscKotlin <- makeHeaderConfig Kotlin (hscKotlin pt)
+    hscNix <- makeHeaderConfig Nix (hscNix pt)
     hscPhp <- makeHeaderConfig PHP (hscPhp pt)
     hscPureScript <- makeHeaderConfig PureScript (hscPureScript pt)
     hscPython <- makeHeaderConfig Python (hscPython pt)

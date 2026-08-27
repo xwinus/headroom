@@ -177,6 +177,7 @@ _Headroom_ can manage license headers only for supported types of source code fi
 | _HTML_       | `html`                | `.html`, `.htm`    |
 | _Java_       | `java`                | `.java`            |
 | _JavaScript_ | `js`                  | `.js`              |
+| _Nix_        | `nix`                 | `.nix`             |
 | _PHP_        | `php`                 | `.php`             |
 | _PureScript_ | `purescript`          | `.purs`            |
 | _Python_     | `python`              | `.py`              |

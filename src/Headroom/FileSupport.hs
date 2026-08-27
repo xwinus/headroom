@@ -36,6 +36,7 @@ import qualified Headroom.FileSupport.Haskell as Haskell
 import qualified Headroom.FileSupport.JS as JS
 import qualified Headroom.FileSupport.Java as Java
 import qualified Headroom.FileSupport.Kotlin as Kotlin
+import qualified Headroom.FileSupport.Nix as Nix
 import qualified Headroom.FileSupport.PHP as PHP
 import qualified Headroom.FileSupport.PureScript as PureScript
 import qualified Headroom.FileSupport.Python as Python
@@ -70,6 +71,7 @@ fileSupport HTML = HTML.fileSupport
 fileSupport Java = Java.fileSupport
 fileSupport JS = JS.fileSupport
 fileSupport Kotlin = Kotlin.fileSupport
+fileSupport Nix = Nix.fileSupport
 fileSupport PHP = PHP.fileSupport
 fileSupport PureScript = PureScript.fileSupport
 fileSupport Python = Python.fileSupport
