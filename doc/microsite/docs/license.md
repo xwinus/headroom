@@ -1,4 +1,4 @@
-Copyright © 2019-2022 Vaclav Svejcar
+Copyright © 2019-2026 Vaclav Svejcar
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 

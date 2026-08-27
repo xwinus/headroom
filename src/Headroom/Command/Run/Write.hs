@@ -6,11 +6,14 @@
 -- |
 -- Module      : Headroom.Command.Run.Write
 -- Description : Safe persistence of transformed source files.
--- Copyright   : (c) 2019-2023 Vaclav Svejcar
+-- Copyright   : (c) 2019-2026 Vaclav Svejcar
 -- License     : BSD-3-Clause
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
 -- Portability : POSIX
+--
+-- Persists transformed source files while preserving their original file
+-- permissions.
 module Headroom.Command.Run.Write
     ( CommandRunError (..)
     , writeSourceFile

@@ -115,6 +115,10 @@ jobs:
         run: |
           stack build --system-ghc --test --bench --no-run-tests --no-run-benchmarks
 
+      - name: Check license headers
+        run: |
+          stack exec --system-ghc headroom -- run -c
+
       - name: Test
         run: |
           stack test --system-ghc
