@@ -73,7 +73,6 @@ library:
     - microlens-aeson
     - microlens-th
     - modern-uri
-    - monad-logger
     - mtl
     - mustache >=2.3.1
     - pcre-light
@@ -99,6 +98,7 @@ tests:
       - mustache
       - mtl
       - pcre-light
+      - persistent-sqlite
       - QuickCheck
       - string-interpolate
       - time

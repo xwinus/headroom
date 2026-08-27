@@ -120,7 +120,8 @@ globalKVStore :: (HasRIO FileSystem env) => RIO env (KVStore (RIO env))
 globalKVStore = do
     FileSystem{..} <- viewL
     userDir <- fsGetUserDirectory
-    sqliteKVStore
+    pure
+        . sqliteKVStore
         . StorePath
         . T.pack
         $ userDir

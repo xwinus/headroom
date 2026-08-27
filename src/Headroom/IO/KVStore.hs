@@ -53,21 +53,18 @@ module Headroom.IO.KVStore
     )
 where
 
-import Control.Monad.Logger (runNoLoggingT)
 import Data.String.Interpolate (iii)
 import Database.Persist
     ( PersistStoreRead (..)
     , PersistStoreWrite (..)
     )
 import Database.Persist.Sqlite
-    ( ConnectionPool
-    , SqlBackend
-    , SqliteConnectionInfo
-    , createSqlitePoolFromInfo
+    ( SqliteConnectionInfo
     , extraPragmas
     , mkSqliteConnectionInfo
     , runMigrationSilent
-    , runSqlPool
+    , runSqliteInfo
+    , walEnabled
     )
 import Database.Persist.TH
     ( mkMigrate
@@ -80,6 +77,7 @@ import Database.Sqlite
     ( Error (..)
     , SqliteException (..)
     )
+import GHC.Clock (getMonotonicTimeNSec)
 import Headroom.Types
     ( fromHeadroomError
     , toHeadroomError
@@ -138,21 +136,14 @@ data KVStore m = KVStore
     }
 
 -- | Constructs persistent instance of 'KVStore' that uses /SQLite/ as a backend.
--- The underlying database is opened (and migrated) lazily, upon the first access
--- to the store, so commands that never touch the store don't pay for it.
 sqliteKVStore
     :: (MonadIO m)
     => StorePath
     -- ^ path of the store location
-    -> m (KVStore m)
+    -> KVStore m
     -- ^ store instance
-sqliteKVStore sp = do
-    poolVar <- newMVar Nothing
-    pure
-        KVStore
-            { kvGetValue = getValueSQLite poolVar sp
-            , kvPutValue = putValueSQLite poolVar sp
-            }
+sqliteKVStore sp =
+    KVStore{kvGetValue = getValueSQLite sp, kvPutValue = putValueSQLite sp}
 
 -- | Constructs non-persistent in-memory instance of 'KVStore'.
 inMemoryKVStore :: (MonadIO m) => m (KVStore m)
@@ -235,75 +226,82 @@ putValueInMemory ref (ValueKey key) value = do
     modifyIORef ref $ M.insert key (encodeValue value)
     pure ()
 
-getValueSQLite
-    :: (MonadIO m) => MVar (Maybe ConnectionPool) -> StorePath -> GetValueFn m
-getValueSQLite poolVar sp (ValueKey key) =
-    withStore poolVar sp $ do
+getValueSQLite :: (MonadIO m) => StorePath -> GetValueFn m
+getValueSQLite (StorePath path) (ValueKey key) =
+    liftIO . withRetry path . runSqliteInfo (connectionInfo path) $ do
+        void $ runMigrationSilent migrateAll
         maybeValue <- get $ StoreRecordKey key
         pure $ case maybeValue of
             Just (StoreRecord v) -> decodeValue v
             Nothing -> Nothing
 
-putValueSQLite
-    :: (MonadIO m) => MVar (Maybe ConnectionPool) -> StorePath -> PutValueFn m
-putValueSQLite poolVar sp (ValueKey key) value =
-    withStore poolVar sp
-        $ repsert (StoreRecordKey key) (StoreRecord $ encodeValue value)
+putValueSQLite :: (MonadIO m) => StorePath -> PutValueFn m
+putValueSQLite (StorePath path) (ValueKey key) value =
+    liftIO . withRetry path . runSqliteInfo (connectionInfo path) $ do
+        void $ runMigrationSilent migrateAll
+        repsert (StoreRecordKey key) (StoreRecord $ encodeValue value)
 
--- | Number of milliseconds that /SQLite/ itself waits for a lock held by another
--- process before giving up with @SQLITE_BUSY@.
+-- | Number of milliseconds that an individual SQLite operation waits for a lock.
 busyTimeout :: Int
-busyTimeout = 5000
+busyTimeout = 100
+
+-- | Maximum time in microseconds spent opening and accessing the store, including
+-- all retries. The store is only used by the optional update check, so it must
+-- fail quickly instead of delaying the main command.
+retryBudget :: Int
+retryBudget = 2000000
 
 -- | Delays (in microseconds) between individual attempts to re-run a transaction
 -- that failed because the store was locked by another process.
 retryDelays :: [Int]
-retryDelays = take 8 $ iterate (* 2) 25000
+retryDelays = iterate (min 200000 . (* 2)) 10000
 
 -- | Connection info for the store, tuned for concurrent access from multiple
 -- /Headroom/ processes sharing the same store file.
 connectionInfo :: Text -> SqliteConnectionInfo
 connectionInfo path =
-    mkSqliteConnectionInfo path
+    infoWithoutDefaultWAL
         & extraPragmas
-        .~ ["PRAGMA busy_timeout = " <> tshow busyTimeout <> ";"]
-
--- | Returns the pool of connections to the store, opening the underlying database
--- and running the migration upon the first call.
-storePool :: MVar (Maybe ConnectionPool) -> Text -> IO ConnectionPool
-storePool poolVar path = modifyMVar poolVar $ \case
-    Just pool -> pure (Just pool, pool)
-    Nothing -> do
-        pool <- runNoLoggingT $ createSqlitePoolFromInfo (connectionInfo path) 1
-        withRetry path . runSqlPool (void $ runMigrationSilent migrateAll) $ pool
-        pure (Just pool, pool)
-
--- | Runs given action against the store.
-withStore
-    :: (MonadIO m)
-    => MVar (Maybe ConnectionPool)
-    -> StorePath
-    -> ReaderT SqlBackend IO a
-    -> m a
-withStore poolVar (StorePath path) action = liftIO $ do
-    pool <- storePool poolVar path
-    withRetry path $ runSqlPool action pool
-
--- | Runs given action, retrying with exponential backoff if it fails because the
--- store is locked by another process, and wrapping any other failure into
--- 'KVStoreError'. Note that the @busy_timeout@ pragma alone isn't enough here, as
--- /SQLite/ doesn't apply it to @SQLITE_BUSY_SNAPSHOT@, raised when a read
--- transaction is being upgraded to a write one.
-withRetry :: Text -> IO a -> IO a
-withRetry path action = go retryDelays `catchAny` wrapError
+        .~ [ "PRAGMA busy_timeout = " <> tshow busyTimeout <> ";"
+           , "PRAGMA journal_mode = WAL;"
+           ]
   where
-    go delays =
+    infoWithoutDefaultWAL = mkSqliteConnectionInfo path & walEnabled .~ False
+
+-- | Runs given action within a single time budget, retrying with jittered
+-- exponential backoff if the store is locked by another process. The whole action
+-- is retried because SQLite can raise @SQLITE_BUSY_SNAPSHOT@ when a read
+-- transaction is upgraded to a write transaction.
+withRetry :: Text -> IO a -> IO a
+withRetry path action = do
+    outcome <- tryAny . timeout retryBudget $ go retryDelays
+    case outcome of
+        Left ex -> wrapError ex
+        Right Nothing ->
+            throwIO
+                . CannotAccessStore path
+                $ "access timed out after "
+                <> tshow (retryBudget `div` 1000)
+                <> " ms"
+        Right (Just result) -> pure result
+  where
+    go (delay : rest) =
         try action >>= \case
             Right result -> pure result
             Left ex
-                | isLocked ex
-                , (delay : rest) <- delays ->
-                    threadDelay delay >> go rest
+                | isLocked ex -> do
+                    actualDelay <- jitter delay
+                    threadDelay actualDelay
+                    go rest
                 | otherwise -> throwIO ex
+    go [] = action
     isLocked ex = seError ex `elem` [ErrorBusy, ErrorLocked]
     wrapError = throwIO . CannotAccessStore path . T.pack . displayException
+
+-- | Adds a small amount of jitter so multiple processes that collided don't keep
+-- retrying in lockstep.
+jitter :: Int -> IO Int
+jitter delay = do
+    now <- getMonotonicTimeNSec
+    let percentage = 75 + fromIntegral (now `mod` 51)
+    pure $ delay * percentage `div` 100
