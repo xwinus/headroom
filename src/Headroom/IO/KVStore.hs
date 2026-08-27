@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -42,6 +43,9 @@ module Headroom.IO.KVStore
     , ValueKey (..)
     , StorePath (..)
 
+      -- * Error Data Types
+    , KVStoreError (..)
+
       -- * Public Functions
     , inMemoryKVStore
     , sqliteKVStore
@@ -49,13 +53,21 @@ module Headroom.IO.KVStore
     )
 where
 
+import Control.Monad.Logger (runNoLoggingT)
+import Data.String.Interpolate (iii)
 import Database.Persist
     ( PersistStoreRead (..)
     , PersistStoreWrite (..)
     )
 import Database.Persist.Sqlite
-    ( runMigrationSilent
-    , runSqlite
+    ( ConnectionPool
+    , SqlBackend
+    , SqliteConnectionInfo
+    , createSqlitePoolFromInfo
+    , extraPragmas
+    , mkSqliteConnectionInfo
+    , runMigrationSilent
+    , runSqlPool
     )
 import Database.Persist.TH
     ( mkMigrate
@@ -64,7 +76,16 @@ import Database.Persist.TH
     , share
     , sqlSettings
     )
+import Database.Sqlite
+    ( Error (..)
+    , SqliteException (..)
+    )
+import Headroom.Types
+    ( fromHeadroomError
+    , toHeadroomError
+    )
 import RIO
+import RIO.List (iterate)
 import qualified RIO.Map as M
 import qualified RIO.Text as T
 import RIO.Time
@@ -117,14 +138,21 @@ data KVStore m = KVStore
     }
 
 -- | Constructs persistent instance of 'KVStore' that uses /SQLite/ as a backend.
+-- The underlying database is opened (and migrated) lazily, upon the first access
+-- to the store, so commands that never touch the store don't pay for it.
 sqliteKVStore
     :: (MonadIO m)
     => StorePath
     -- ^ path of the store location
-    -> KVStore m
+    -> m (KVStore m)
     -- ^ store instance
-sqliteKVStore sp =
-    KVStore{kvGetValue = getValueSQLite sp, kvPutValue = putValueSQLite sp}
+sqliteKVStore sp = do
+    poolVar <- newMVar Nothing
+    pure
+        KVStore
+            { kvGetValue = getValueSQLite poolVar sp
+            , kvPutValue = putValueSQLite poolVar sp
+            }
 
 -- | Constructs non-persistent in-memory instance of 'KVStore'.
 inMemoryKVStore :: (MonadIO m) => m (KVStore m)
@@ -175,6 +203,26 @@ valueKey = ValueKey
 -- | Path to the store (e.g. path of the /SQLite/ database on filesystem).
 newtype StorePath = StorePath Text deriving (Eq, Show)
 
+---------------------------------  ERROR TYPES  --------------------------------
+
+-- | Error during accessing the /key-value/ store.
+data KVStoreError
+    = -- | store cannot be opened or accessed
+      CannotAccessStore Text Text
+    deriving (Eq, Show, Typeable)
+
+instance Exception KVStoreError where
+    displayException = displayException'
+    toException = toHeadroomError
+    fromException = fromHeadroomError
+
+displayException' :: KVStoreError -> String
+displayException' = \case
+    CannotAccessStore path reason ->
+        [iii|
+    Cannot access the key-value store at #{path}, reason: #{reason}.
+  |]
+
 ------------------------------  PRIVATE FUNCTIONS  -----------------------------
 
 getValueInMemory :: (MonadIO m) => IORef (Map Text Text) -> GetValueFn m
@@ -187,17 +235,75 @@ putValueInMemory ref (ValueKey key) value = do
     modifyIORef ref $ M.insert key (encodeValue value)
     pure ()
 
-getValueSQLite :: (MonadIO m) => StorePath -> GetValueFn m
-getValueSQLite (StorePath path) (ValueKey key) = do
-    liftIO . runSqlite path $ do
-        _ <- runMigrationSilent migrateAll
+getValueSQLite
+    :: (MonadIO m) => MVar (Maybe ConnectionPool) -> StorePath -> GetValueFn m
+getValueSQLite poolVar sp (ValueKey key) =
+    withStore poolVar sp $ do
         maybeValue <- get $ StoreRecordKey key
-        case maybeValue of
-            Just (StoreRecord v) -> pure . decodeValue $ v
-            Nothing -> pure Nothing
+        pure $ case maybeValue of
+            Just (StoreRecord v) -> decodeValue v
+            Nothing -> Nothing
 
-putValueSQLite :: (MonadIO m) => StorePath -> PutValueFn m
-putValueSQLite (StorePath path) (ValueKey key) value = do
-    liftIO . runSqlite path $ do
-        _ <- runMigrationSilent migrateAll
-        repsert (StoreRecordKey key) (StoreRecord $ encodeValue value)
+putValueSQLite
+    :: (MonadIO m) => MVar (Maybe ConnectionPool) -> StorePath -> PutValueFn m
+putValueSQLite poolVar sp (ValueKey key) value =
+    withStore poolVar sp
+        $ repsert (StoreRecordKey key) (StoreRecord $ encodeValue value)
+
+-- | Number of milliseconds that /SQLite/ itself waits for a lock held by another
+-- process before giving up with @SQLITE_BUSY@.
+busyTimeout :: Int
+busyTimeout = 5000
+
+-- | Delays (in microseconds) between individual attempts to re-run a transaction
+-- that failed because the store was locked by another process.
+retryDelays :: [Int]
+retryDelays = take 8 $ iterate (* 2) 25000
+
+-- | Connection info for the store, tuned for concurrent access from multiple
+-- /Headroom/ processes sharing the same store file.
+connectionInfo :: Text -> SqliteConnectionInfo
+connectionInfo path =
+    mkSqliteConnectionInfo path
+        & extraPragmas
+        .~ ["PRAGMA busy_timeout = " <> tshow busyTimeout <> ";"]
+
+-- | Returns the pool of connections to the store, opening the underlying database
+-- and running the migration upon the first call.
+storePool :: MVar (Maybe ConnectionPool) -> Text -> IO ConnectionPool
+storePool poolVar path = modifyMVar poolVar $ \case
+    Just pool -> pure (Just pool, pool)
+    Nothing -> do
+        pool <- runNoLoggingT $ createSqlitePoolFromInfo (connectionInfo path) 1
+        withRetry path . runSqlPool (void $ runMigrationSilent migrateAll) $ pool
+        pure (Just pool, pool)
+
+-- | Runs given action against the store.
+withStore
+    :: (MonadIO m)
+    => MVar (Maybe ConnectionPool)
+    -> StorePath
+    -> ReaderT SqlBackend IO a
+    -> m a
+withStore poolVar (StorePath path) action = liftIO $ do
+    pool <- storePool poolVar path
+    withRetry path $ runSqlPool action pool
+
+-- | Runs given action, retrying with exponential backoff if it fails because the
+-- store is locked by another process, and wrapping any other failure into
+-- 'KVStoreError'. Note that the @busy_timeout@ pragma alone isn't enough here, as
+-- /SQLite/ doesn't apply it to @SQLITE_BUSY_SNAPSHOT@, raised when a read
+-- transaction is being upgraded to a write one.
+withRetry :: Text -> IO a -> IO a
+withRetry path action = go retryDelays `catchAny` wrapError
+  where
+    go delays =
+        try action >>= \case
+            Right result -> pure result
+            Left ex
+                | isLocked ex
+                , (delay : rest) <- delays ->
+                    threadDelay delay >> go rest
+                | otherwise -> throwIO ex
+    isLocked ex = seError ex `elem` [ErrorBusy, ErrorLocked]
+    wrapError = throwIO . CannotAccessStore path . T.pack . displayException

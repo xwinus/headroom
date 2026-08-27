@@ -263,6 +263,7 @@ library
     , microlens-aeson
     , microlens-th
     , modern-uri
+    , monad-logger
     , mtl
     , mustache >=2.3.1
     , optparse-applicative
@@ -371,7 +372,7 @@ test-suite spec
       Paths_headroom
   hs-source-dirs:
       test
-  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
+  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:

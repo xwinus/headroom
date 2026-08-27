@@ -73,6 +73,7 @@ library:
     - microlens-aeson
     - microlens-th
     - modern-uri
+    - monad-logger
     - mtl
     - mustache >=2.3.1
     - pcre-light
@@ -102,6 +103,10 @@ tests:
       - string-interpolate
       - time
     build-tools: hspec-discover
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
 
   doctest:
     main: Main.hs

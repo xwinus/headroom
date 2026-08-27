@@ -70,14 +70,17 @@ checkUpdates
 checkUpdates UpdaterConfig{..} = do
     KVStore{..} <- viewL
     now <- getCurrentTime
-    maybeLastCheckDate <- kvGetValue lastCheckDateKey
-    let today = utctDay now
-        shouldCheck =
-            ucCheckForUpdates && case utctDay <$> maybeLastCheckDate of
-                Just lastCheck
-                    | abs (diffDays lastCheck today) > ucUpdateIntervalDays -> True
-                    | otherwise -> False
-                Nothing -> True
+    -- note that the store must not be touched at all when the updater is
+    -- disabled, so that disabling it works as a workaround for a broken store
+    shouldCheck <-
+        if not ucCheckForUpdates
+            then pure False
+            else do
+                maybeLastCheckDate <- kvGetValue lastCheckDateKey
+                pure $ case utctDay <$> maybeLastCheckDate of
+                    Just lastCheck ->
+                        abs (diffDays lastCheck (utctDay now)) > ucUpdateIntervalDays
+                    Nothing -> True
     when shouldCheck $ kvPutValue lastCheckDateKey now
     if shouldCheck then isNewer <$> fetchLatestVersion else pure Nothing
   where

@@ -40,6 +40,7 @@ import Headroom.Data.Has
 import Headroom.IO.FileSystem (FileSystem (..))
 import Headroom.IO.KVStore
     ( KVStore
+    , KVStoreError (..)
     , StorePath (..)
     , sqliteKVStore
     )
@@ -101,13 +102,17 @@ bootstrap = do
     welcomeMessage
     initGlobalConfigIfNeeded
     globalConfig@GlobalConfig{..} <- loadGlobalConfig
-    catch (checkUpdates gcUpdates) onError >>= \case
+    -- checking for updates is a convenience, so no failure of it (including
+    -- failure of the store holding the date of the last check) may abort the run
+    checkUpdates gcUpdates `catch` onUpdaterError `catch` onStoreError >>= \case
         Nothing -> pure ()
         Just newVersion -> displayUpdate newVersion
     pure BootstrapEnv{beGlobalConfig = globalConfig}
   where
-    onError err = do
-        logWarn . display . T.pack $ displayException (err :: UpdaterError)
+    onUpdaterError err = warn $ displayException (err :: UpdaterError)
+    onStoreError err = warn $ displayException (err :: KVStoreError)
+    warn reason = do
+        logWarn . display . T.pack $ reason
         pure Nothing
 
 -- | Shared /SQLite/-based 'KVStore'.
@@ -115,8 +120,7 @@ globalKVStore :: (HasRIO FileSystem env) => RIO env (KVStore (RIO env))
 globalKVStore = do
     FileSystem{..} <- viewL
     userDir <- fsGetUserDirectory
-    pure
-        . sqliteKVStore
+    sqliteKVStore
         . StorePath
         . T.pack
         $ userDir
