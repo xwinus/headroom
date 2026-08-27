@@ -5,7 +5,7 @@ license: BSD-3-Clause
 license-file: LICENSE
 author: Vaclav Svejcar
 maintainer: vaclav.svejcar@gmail.com
-copyright: Copyright (c) 2019-2022 Vaclav Svejcar
+copyright: Copyright (c) 2019-2026 Vaclav Svejcar
 github: xwinus/headroom
 category: Utils
 synopsis: License Header Manager

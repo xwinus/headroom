@@ -1,7 +1,7 @@
 ## This is the configuration file for Headroom.
 ## See https://github.com/xwinus/headroom for more details.
 
-version: 0.4.0.0
+version: 0.5.0.0
 
 run-mode: replace
 
@@ -16,7 +16,7 @@ variables:
   author: Vaclav Svejcar
   license: BSD-3-Clause
   email: vaclav.svejcar@gmail.com
-  year: 2019-2022
+  year: 2019-2026
 
 license-headers:
   haskell:

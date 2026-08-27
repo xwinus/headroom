@@ -6,11 +6,14 @@
 -- |
 -- Module      : Headroom.Command.Run.Config
 -- Description : Configuration and time context for the run command.
--- Copyright   : (c) 2019-2023 Vaclav Svejcar
+-- Copyright   : (c) 2019-2026 Vaclav Svejcar
 -- License     : BSD-3-Clause
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
 -- Portability : POSIX
+--
+-- Combines defaults, project configuration, and command-line options into the
+-- effective runtime configuration.
 module Headroom.Command.Run.Config
     ( currentYear
     , finalConfiguration

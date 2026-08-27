@@ -21,7 +21,7 @@
 -- |
 -- Module      : Headroom.IO.KVStore
 -- Description : Key-value persistent store
--- Copyright   : (c) 2019-2023 Vaclav Svejcar
+-- Copyright   : (c) 2019-2026 Vaclav Svejcar
 -- License     : BSD-3-Clause
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
