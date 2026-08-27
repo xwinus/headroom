@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -42,6 +43,9 @@ module Headroom.IO.KVStore
     , ValueKey (..)
     , StorePath (..)
 
+      -- * Error Data Types
+    , KVStoreError (..)
+
       -- * Public Functions
     , inMemoryKVStore
     , sqliteKVStore
@@ -49,13 +53,18 @@ module Headroom.IO.KVStore
     )
 where
 
+import Data.String.Interpolate (iii)
 import Database.Persist
     ( PersistStoreRead (..)
     , PersistStoreWrite (..)
     )
 import Database.Persist.Sqlite
-    ( runMigrationSilent
-    , runSqlite
+    ( SqliteConnectionInfo
+    , extraPragmas
+    , mkSqliteConnectionInfo
+    , runMigrationSilent
+    , runSqliteInfo
+    , walEnabled
     )
 import Database.Persist.TH
     ( mkMigrate
@@ -64,7 +73,17 @@ import Database.Persist.TH
     , share
     , sqlSettings
     )
+import Database.Sqlite
+    ( Error (..)
+    , SqliteException (..)
+    )
+import GHC.Clock (getMonotonicTimeNSec)
+import Headroom.Types
+    ( fromHeadroomError
+    , toHeadroomError
+    )
 import RIO
+import RIO.List (iterate)
 import qualified RIO.Map as M
 import qualified RIO.Text as T
 import RIO.Time
@@ -175,6 +194,26 @@ valueKey = ValueKey
 -- | Path to the store (e.g. path of the /SQLite/ database on filesystem).
 newtype StorePath = StorePath Text deriving (Eq, Show)
 
+---------------------------------  ERROR TYPES  --------------------------------
+
+-- | Error during accessing the /key-value/ store.
+data KVStoreError
+    = -- | store cannot be opened or accessed
+      CannotAccessStore Text Text
+    deriving (Eq, Show, Typeable)
+
+instance Exception KVStoreError where
+    displayException = displayException'
+    toException = toHeadroomError
+    fromException = fromHeadroomError
+
+displayException' :: KVStoreError -> String
+displayException' = \case
+    CannotAccessStore path reason ->
+        [iii|
+    Cannot access the key-value store at #{path}, reason: #{reason}.
+  |]
+
 ------------------------------  PRIVATE FUNCTIONS  -----------------------------
 
 getValueInMemory :: (MonadIO m) => IORef (Map Text Text) -> GetValueFn m
@@ -188,16 +227,81 @@ putValueInMemory ref (ValueKey key) value = do
     pure ()
 
 getValueSQLite :: (MonadIO m) => StorePath -> GetValueFn m
-getValueSQLite (StorePath path) (ValueKey key) = do
-    liftIO . runSqlite path $ do
-        _ <- runMigrationSilent migrateAll
+getValueSQLite (StorePath path) (ValueKey key) =
+    liftIO . withRetry path . runSqliteInfo (connectionInfo path) $ do
+        void $ runMigrationSilent migrateAll
         maybeValue <- get $ StoreRecordKey key
-        case maybeValue of
-            Just (StoreRecord v) -> pure . decodeValue $ v
-            Nothing -> pure Nothing
+        pure $ case maybeValue of
+            Just (StoreRecord v) -> decodeValue v
+            Nothing -> Nothing
 
 putValueSQLite :: (MonadIO m) => StorePath -> PutValueFn m
-putValueSQLite (StorePath path) (ValueKey key) value = do
-    liftIO . runSqlite path $ do
-        _ <- runMigrationSilent migrateAll
+putValueSQLite (StorePath path) (ValueKey key) value =
+    liftIO . withRetry path . runSqliteInfo (connectionInfo path) $ do
+        void $ runMigrationSilent migrateAll
         repsert (StoreRecordKey key) (StoreRecord $ encodeValue value)
+
+-- | Number of milliseconds that an individual SQLite operation waits for a lock.
+busyTimeout :: Int
+busyTimeout = 100
+
+-- | Maximum time in microseconds spent opening and accessing the store, including
+-- all retries. The store is only used by the optional update check, so it must
+-- fail quickly instead of delaying the main command.
+retryBudget :: Int
+retryBudget = 2000000
+
+-- | Delays (in microseconds) between individual attempts to re-run a transaction
+-- that failed because the store was locked by another process.
+retryDelays :: [Int]
+retryDelays = iterate (min 200000 . (* 2)) 10000
+
+-- | Connection info for the store, tuned for concurrent access from multiple
+-- /Headroom/ processes sharing the same store file.
+connectionInfo :: Text -> SqliteConnectionInfo
+connectionInfo path =
+    infoWithoutDefaultWAL
+        & extraPragmas
+        .~ [ "PRAGMA busy_timeout = " <> tshow busyTimeout <> ";"
+           , "PRAGMA journal_mode = WAL;"
+           ]
+  where
+    infoWithoutDefaultWAL = mkSqliteConnectionInfo path & walEnabled .~ False
+
+-- | Runs given action within a single time budget, retrying with jittered
+-- exponential backoff if the store is locked by another process. The whole action
+-- is retried because SQLite can raise @SQLITE_BUSY_SNAPSHOT@ when a read
+-- transaction is upgraded to a write transaction.
+withRetry :: Text -> IO a -> IO a
+withRetry path action = do
+    outcome <- tryAny . timeout retryBudget $ go retryDelays
+    case outcome of
+        Left ex -> wrapError ex
+        Right Nothing ->
+            throwIO
+                . CannotAccessStore path
+                $ "access timed out after "
+                <> tshow (retryBudget `div` 1000)
+                <> " ms"
+        Right (Just result) -> pure result
+  where
+    go (delay : rest) =
+        try action >>= \case
+            Right result -> pure result
+            Left ex
+                | isLocked ex -> do
+                    actualDelay <- jitter delay
+                    threadDelay actualDelay
+                    go rest
+                | otherwise -> throwIO ex
+    go [] = action
+    isLocked ex = seError ex `elem` [ErrorBusy, ErrorLocked]
+    wrapError = throwIO . CannotAccessStore path . T.pack . displayException
+
+-- | Adds a small amount of jitter so multiple processes that collided don't keep
+-- retrying in lockstep.
+jitter :: Int -> IO Int
+jitter delay = do
+    now <- getMonotonicTimeNSec
+    let percentage = 75 + fromIntegral (now `mod` 51)
+    pure $ delay * percentage `div` 100

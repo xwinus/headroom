@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - [#104] FIXED: Source files are written non-atomically, so concurrent changes can be lost
 - [#106] FIXED: Missing dotted Mustache variable renders as empty text instead of being reported
 - [#114] Allow passing source paths as positional arguments
+- [#117] FIXED: Intermittent failures when multiple Headroom processes share single cache file
 - Bump _LTS Haskell_ to `24.56`
 
 ## 0.4.3.0 (released 2022-01-20)

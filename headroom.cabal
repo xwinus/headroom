@@ -1,10 +1,10 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.39.6.
+-- This file has been generated from package.yaml by hpack version 0.38.3.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: "kb\ETX\b\179C\141\214\193\181\US\SO\150\228\196\157LL\187\241\168\208\DC1\194\227-%\199\&3V\186/"
+-- hash: 545ee3ec1f238ac47868c4119a5f18e32871bef5580e80d379892e2e88e09567
 
 name:           headroom
 version:        0.5.0.0
@@ -316,6 +316,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Headroom.Command.BootstrapSpec
       Headroom.Command.InitSpec
       Headroom.Command.ReadersSpec
       Headroom.Command.Run.ConfigSpec
@@ -371,7 +372,7 @@ test-suite spec
       Paths_headroom
   hs-source-dirs:
       test
-  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
+  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:
@@ -385,6 +386,7 @@ test-suite spec
     , mustache
     , optparse-applicative
     , pcre-light
+    , persistent-sqlite
     , rio
     , string-interpolate
     , time

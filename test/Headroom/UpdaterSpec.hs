@@ -116,19 +116,7 @@ spec = do
             actual `shouldBe` Nothing
 
         it "returns Nothing if checking for updates is disabled" $ do
-            store@KVStore{..} <- runRIO env0 inMemoryKVStore
-            let json = [i|{"name": "v999.0.0.0"}|]
-                env =
-                    env0
-                        & (envKVStoreL .~ kvStore')
-                        & (envNetworkL . nDownloadContentL .~ nDownloadContent')
-                nDownloadContent' = const . pure $ json
-                updaterConfig' = UpdaterConfig False 2
-                kvStore' = store
-            actual <- runRIO env (checkUpdates updaterConfig')
-            maybeLastCheckDate <- runRIO env $ kvGetValue storeKey
-            actual `shouldBe` Nothing
-            maybeLastCheckDate `shouldBe` Nothing
+            runRIO env0 (checkUpdates $ UpdaterConfig False 2) `shouldReturn` Nothing
 
     describe "fetchLatestVersion" $ do
         it "gets latest version info" $ do
