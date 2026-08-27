@@ -99,10 +99,13 @@ tests:
       - mtl
       - pcre-light
       - persistent-sqlite
+      - process
       - QuickCheck
       - string-interpolate
       - time
-    build-tools: hspec-discover
+    build-tools:
+      - hspec-discover
+      - headroom:headroom
     ghc-options:
       - -threaded
       - -rtsopts

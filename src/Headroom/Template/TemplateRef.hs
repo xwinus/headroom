@@ -38,7 +38,7 @@ where
 
 import Data.Aeson
     ( FromJSON (..)
-    , Value (String)
+    , withText
     )
 import Data.String.Interpolate
     ( i
@@ -76,9 +76,9 @@ data TemplateRef
     deriving (Eq, Ord, Show)
 
 instance FromJSON TemplateRef where
-    parseJSON = \case
-        String s -> maybe (error $ T.unpack s) pure (mkTemplateRef s)
-        other -> error $ "Invalid value for template reference: " <> show other
+    parseJSON = withText "TemplateRef" $ \raw ->
+        let result = mkTemplateRef raw :: Either SomeException TemplateRef
+         in either (fail . displayException) pure result
 
 ------------------------------  PUBLIC FUNCTIONS  ------------------------------
 

@@ -38,7 +38,7 @@ where
 
 import Data.Aeson
     ( FromJSON (..)
-    , Value (String)
+    , withText
     )
 import Data.String.Interpolate (iii)
 import Headroom.Data.Coerce (coerce)
@@ -68,8 +68,9 @@ instance Show Regex where
     show (Regex (PL.Regex _ r)) = show r
 
 instance FromJSON Regex where
-    parseJSON (String s) = pure . compileUnsafe $ s
-    parseJSON val = error $ "Invalid value: expected regex, found: " <> show val
+    parseJSON = withText "Regex" $ \raw ->
+        let result = compile raw :: Either SomeException Regex
+         in either (fail . displayException) pure result
 
 ------------------------------  PUBLIC FUNCTIONS  ------------------------------
 

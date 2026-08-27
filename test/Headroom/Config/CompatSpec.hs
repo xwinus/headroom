@@ -13,6 +13,7 @@ import Headroom.Meta.Version
     , pvp
     )
 import RIO
+import qualified RIO.Text as T
 import Test.Hspec
 
 spec :: Spec
@@ -54,5 +55,15 @@ spec = do
                 curr = [pvp|0.2.0.0|]
                 versions = [[pvp|0.1.0.0|], [pvp|0.2.1.0|], [pvp|0.4.0.0|]]
             let err (CannotParseYaml _) = True
+                err _ = False
+            checkCompatibility versions curr yaml `shouldThrow` err
+
+        it "preserves the reason for an invalid version value" $ do
+            let yaml = "version: invalid"
+                curr = [pvp|0.2.0.0|]
+                versions = [[pvp|0.1.0.0|]]
+            let err (CannotParseYaml parseError) =
+                    "not valid PVP version"
+                        `T.isInfixOf` T.pack (displayException parseError)
                 err _ = False
             checkCompatibility versions curr yaml `shouldThrow` err

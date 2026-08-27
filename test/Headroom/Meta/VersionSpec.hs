@@ -7,12 +7,26 @@ module Headroom.Meta.VersionSpec
     )
 where
 
+import qualified Data.Aeson as A
 import Headroom.Meta.Version
 import RIO
+import qualified RIO.Text as T
 import Test.Hspec
 
 spec :: Spec
 spec = do
+    describe "FromJSON instance for Version" $ do
+        it "deserializes a valid PVP version" $ do
+            A.eitherDecode "\"0.1.2.3\"" `shouldBe` Right [pvp|0.1.2.3|]
+
+        it "rejects an invalid PVP version through Parser" $ do
+            (A.eitherDecode "\"0.1\"" :: Either String Version)
+                `shouldSatisfy` errorContaining "not valid PVP version"
+
+        it "rejects a non-string PVP version through Parser" $ do
+            (A.eitherDecode "123" :: Either String Version)
+                `shouldSatisfy` errorContaining "expected String"
+
     describe "Ord instance" $ do
         it "correctly compare two values" $ do
             compare [pvp|1.2.3.4|] [pvp|1.2.3.4|] `shouldBe` EQ
@@ -38,3 +52,7 @@ spec = do
     describe "pvp" $ do
         it "produces correct Version using QuasiQuotes" $ do
             [pvp|0.1.2.3|] `shouldBe` Version 0 1 2 3
+
+errorContaining :: Text -> Either String a -> Bool
+errorContaining expected =
+    either (T.isInfixOf expected . T.pack) (const False)
