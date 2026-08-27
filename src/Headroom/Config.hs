@@ -30,8 +30,11 @@ module Headroom.Config
 where
 
 import Data.Monoid (Last (..))
-import qualified Data.Yaml as Y
 import Headroom.Config.Compat (checkCompatibility)
+import Headroom.Config.Parse
+    ( ConfigurationScope (ProjectConfiguration)
+    , decodeConfiguration
+    )
 import Headroom.Config.Types
     ( AppConfig (..)
     , ConfigurationError (..)
@@ -84,7 +87,7 @@ parseAppConfig
     -- ^ raw input to parse
     -> m PtAppConfig
     -- ^ parsed application configuration
-parseAppConfig = Y.decodeThrow
+parseAppConfig = decodeConfiguration ProjectConfiguration
 
 -- | Makes full 'CtAppConfig' from provided 'PtAppConfig' (if valid).
 makeAppConfig

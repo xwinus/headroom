@@ -13,6 +13,7 @@ import qualified Data.Aeson as Aeson
 import Headroom.Template.TemplateRef
 import RIO
 import qualified RIO.List as L
+import qualified RIO.Text as T
 import Test.Hspec
 import Text.URI.QQ (uri)
 
@@ -58,6 +59,15 @@ spec = do
                 expected = UriTemplateRef [uri|http://foo/haskell.mustache|]
             Aeson.decode sample `shouldBe` Just expected
 
+        it "rejects an invalid template reference through Parser" $ do
+            let sample = "\"ftp://foo/haskell.mustache\""
+            (Aeson.eitherDecode sample :: Either String TemplateRef)
+                `shouldSatisfy` errorContaining "is not supported"
+
+        it "rejects a non-string template reference through Parser" $ do
+            (Aeson.eitherDecode "true" :: Either String TemplateRef)
+                `shouldSatisfy` errorContaining "expected String"
+
     describe "Ord instance for TemplateRef" $ do
         it "should properly order records" $ do
             let sample =
@@ -69,3 +79,7 @@ spec = do
                     , UriTemplateRef [uri|http://foo/haskell.mustache|]
                     ]
             L.sort sample `shouldBe` expected
+
+errorContaining :: Text -> Either String a -> Bool
+errorContaining expected =
+    either (T.isInfixOf expected . T.pack) (const False)

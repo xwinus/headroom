@@ -27,7 +27,7 @@ where
 
 import Data.Aeson
     ( FromJSON (..)
-    , Value (String)
+    , withText
     )
 import Headroom.Data.Regex
     ( match
@@ -63,8 +63,8 @@ instance Ord Version where
             | otherwise = go xs
 
 instance FromJSON Version where
-    parseJSON (String s) = maybe (error . errorMsg $ s) pure (parseVersion s)
-    parseJSON other = error . errorMsg . tshow $ other
+    parseJSON = withText "Version" $ \raw ->
+        maybe (fail . errorMsg $ raw) pure (parseVersion raw)
 
 ------------------------------  PUBLIC FUNCTIONS  ------------------------------
 

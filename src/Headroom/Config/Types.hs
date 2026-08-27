@@ -76,9 +76,9 @@ where
 import Control.Exception (throw)
 import Data.Aeson
     ( FromJSON (..)
-    , Value (String)
     , genericParseJSON
     , withObject
+    , withText
     , (.!=)
     , (.:?)
     )
@@ -165,14 +165,13 @@ data RunMode
     deriving (Eq, Show)
 
 instance FromJSON RunMode where
-    parseJSON = \case
-        String s -> case T.toLower s of
+    parseJSON = withText "RunMode" $ \raw ->
+        case T.toLower raw of
             "add" -> pure Add
             "check" -> pure Check
             "drop" -> pure Drop
             "replace" -> pure Replace
-            _ -> error $ "Unknown run mode: " <> T.unpack s
-        other -> error $ "Invalid value for run mode: " <> show other
+            _ -> fail $ "Unknown run mode: " <> T.unpack raw
 
 -----------------------------------  GenMode  ----------------------------------
 

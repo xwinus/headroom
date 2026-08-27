@@ -1,10 +1,10 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.38.3.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 545ee3ec1f238ac47868c4119a5f18e32871bef5580e80d379892e2e88e09567
+-- hash: "[kZ\175S\252{o\243\136Eg\235\245\197~\201\&2\196\&8-.\137\196@CIm\161\135Z\161"
 
 name:           headroom
 version:        0.5.0.0
@@ -187,6 +187,7 @@ library
       Headroom.Config.Compat
       Headroom.Config.Enrich
       Headroom.Config.Global
+      Headroom.Config.Parse
       Headroom.Config.Types
       Headroom.Data.Coerce
       Headroom.Data.EnumExtra
@@ -316,6 +317,7 @@ test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Headroom.CLISpec
       Headroom.Command.BootstrapSpec
       Headroom.Command.InitSpec
       Headroom.Command.ReadersSpec
@@ -375,6 +377,7 @@ test-suite spec
   ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
+    , headroom:headroom
   build-depends:
       QuickCheck
     , aeson
@@ -387,6 +390,7 @@ test-suite spec
     , optparse-applicative
     , pcre-light
     , persistent-sqlite
+    , process
     , rio
     , string-interpolate
     , time

@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
@@ -30,7 +29,7 @@ where
 
 import Data.Aeson
     ( FromJSON (..)
-    , Value (String)
+    , withText
     )
 import Data.Typeable (cast)
 import Headroom.Data.EnumExtra (EnumExtra (..))
@@ -90,8 +89,7 @@ data LicenseType
     deriving (Bounded, Enum, EnumExtra, Eq, Ord, Show)
 
 instance FromJSON LicenseType where
-    parseJSON = \case
-        String s -> case textToEnum s of
+    parseJSON = withText "LicenseType" $ \raw ->
+        case textToEnum raw of
             Just licenseType -> pure licenseType
-            _ -> error $ "Unknown license type: " <> T.unpack s
-        other -> error $ "Invalid value for run mode: " <> show other
+            _ -> fail $ "Unknown license type: " <> T.unpack raw

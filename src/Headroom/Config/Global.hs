@@ -29,7 +29,10 @@ import Data.Aeson
     ( FromJSON (..)
     , genericParseJSON
     )
-import qualified Data.Yaml as Y
+import Headroom.Config.Parse
+    ( ConfigurationScope (GlobalConfiguration)
+    , decodeConfiguration
+    )
 import Headroom.Data.Has
     ( Has (..)
     , HasRIO
@@ -87,11 +90,11 @@ loadGlobalConfig :: (HasRIO FileSystem env) => RIO env GlobalConfig
 loadGlobalConfig = do
     configPath <- globalConfigPath
     content <- liftIO . B.readFile $ configPath
-    Y.decodeThrow content
+    parseGlobalConfig content
 
 -- | Parses global configuration /YAML/ file.
 parseGlobalConfig :: (MonadThrow m) => ByteString -> m GlobalConfig
-parseGlobalConfig = Y.decodeThrow
+parseGlobalConfig = decodeConfiguration GlobalConfiguration
 
 -- | Path to global configuration /YAML/ file in user's directory.
 globalConfigPath :: (HasRIO FileSystem env) => RIO env FilePath

@@ -24,8 +24,9 @@ where
 
 import Data.Aeson
     ( FromJSON (..)
+    , Value (Null)
     , withObject
-    , (.:)
+    , (.:?)
     )
 import Data.String.Interpolate (iii)
 import qualified Data.Yaml as Y
@@ -49,12 +50,13 @@ import qualified RIO.List as L
 
 ---------------------------------  DATA TYPES  ---------------------------------
 
-newtype VersionObj = VersionObj Version deriving (Eq, Show)
+newtype VersionObj = VersionObj (Maybe Version) deriving (Eq, Show)
 
 instance FromJSON VersionObj where
-    parseJSON = withObject "VersionObj" $ \obj -> do
-        version <- obj .: "version"
-        pure $ VersionObj version
+    parseJSON Null = pure $ VersionObj Nothing
+    parseJSON value = withObject "VersionObj" parseObject value
+      where
+        parseObject obj = VersionObj <$> obj .:? "version"
 
 ---------------------------------  ERROR TYPES  --------------------------------
 
@@ -90,16 +92,15 @@ checkCompatibility
     -> m Version
     -- ^ detected compatible version or error
 checkCompatibility breakingVersions current raw = do
-    VersionObj version <- parseObj
+    VersionObj maybeVersion <- parseObj
+    version <- maybe (throwM CannotParseVersion) pure maybeVersion
     _ <- checkBreakingChanges breakingVersions version
     _ <- checkNewerVersion current version
     pure version
   where
     parseObj = either (throwM . handleEx) pure decoded
     decoded = Y.decodeEither' raw
-    handleEx = \case
-        err@(Y.InvalidYaml _) -> CannotParseYaml err
-        _ -> CannotParseVersion
+    handleEx = CannotParseYaml
 
 ------------------------------  PRIVATE FUNCTIONS  -----------------------------
 

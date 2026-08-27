@@ -11,6 +11,10 @@ module Headroom.Config.GlobalSpec
 where
 
 import Headroom.Config.Global
+import Headroom.Config.Parse
+    ( ConfigurationParseError (..)
+    , ConfigurationScope (..)
+    )
 import Headroom.Data.Has (Has (..))
 import Headroom.Data.Lens
     ( suffixLenses
@@ -28,6 +32,7 @@ import Headroom.Meta
 import RIO
 import RIO.Directory (doesFileExist)
 import RIO.FilePath ((</>))
+import qualified RIO.Text as T
 import Test.Hspec
 
 data TestEnv = TestEnv
@@ -94,3 +99,19 @@ spec = do
     describe "parseGlobalConfig" $ do
         it "parses embedded default config YAML" $ do
             parseGlobalConfig defaultGlobalConfig `shouldSatisfy` isRight
+
+        it "returns a structured error for an invalid configuration value" $ do
+            let yaml = "updates:\n  check-for-updates: invalid\n  update-interval-days: 7"
+            (parseGlobalConfig yaml :: IO GlobalConfig)
+                `shouldThrow` configurationErrorContaining "expected Bool"
+
+        it "returns a structured error for malformed YAML" $ do
+            (parseGlobalConfig "updates: [" :: IO GlobalConfig)
+                `shouldThrow` configurationErrorContaining "YAML parse exception"
+
+configurationErrorContaining :: Text -> ConfigurationParseError -> Bool
+configurationErrorContaining expected (ConfigurationParseError scope parseError) =
+    scope
+        == GlobalConfiguration
+        && expected
+        `T.isInfixOf` T.pack (displayException parseError)
