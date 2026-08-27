@@ -34,11 +34,11 @@ markdown_extensions:
       permalink: true
   - admonition
 
-repo_name: vaclavsvejcar/headroom
-repo_url: https://github.com/vaclavsvejcar/headroom
+repo_name: xwinus/headroom
+repo_url: https://github.com/xwinus/headroom
 edit_uri: ""
 
 extra:
   social:
     - icon: fontawesome/brands/github-alt
-      link: https://github.com/vaclavsvejcar
+      link: https://github.com/xwinus

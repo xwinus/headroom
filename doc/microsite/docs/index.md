@@ -24,8 +24,8 @@ Here is the list of projects using _Headroom_. If you're using _Headroom_ and ar
 - [wireapp/wire-server](https://github.com/wireapp/wire-server) - Wire back-end services ([https://wire.com](https://wire.com))
 
 
-[meta:new-issue]: https://github.com/vaclavsvejcar/headroom/issues/new
-[meta:pulls]: https://github.com/vaclavsvejcar/headroom/pulls
+[meta:new-issue]: https://github.com/xwinus/headroom/issues/new
+[meta:pulls]: https://github.com/xwinus/headroom/pulls
 [rel:configuration]: documentation/configuration.md
 [rel:templates]: documentation/templates.md
 [rel:post-processing]: documentation/post-processing.md

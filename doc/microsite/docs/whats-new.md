@@ -34,5 +34,5 @@ This release adds functionality that automatically checks whether new version of
 [doc:migration-guide]: migration-guide.md
 [doc:running-headroom]: documentation/running-headroom.md
 [doc:templates]: documentation/templates.md
-[github:vcs-ignore]: https://github.com/vaclavsvejcar/vcs-ignore
-[github/issue/87]: https://github.com/vaclavsvejcar/headroom/issues/87
+[github:vcs-ignore]: https://github.com/xwinus/vcs-ignore
+[github/issue/87]: https://github.com/xwinus/headroom/issues/87
