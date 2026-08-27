@@ -3,7 +3,7 @@ This is a minor release of _Headroom_ that doesn't require to perform any migrat
 
 ## List of all Migration Guides
 
-- [from `v0.4.3.0` to `v0.4.4.0`][v0430-v0440]
+- [from `v0.4.3.0` to `v0.5.0.0`][v0430-v0500]
 - [from `v0.4.2.0` to `v0.4.3.0`][v0420-v0430]
 - [from `v0.4.1.0` to `v0.4.2.0`][v0410-v0420]
 - [from `v0.4.0.0` to `v0.4.1.0`][v0400-v0410]
@@ -17,4 +17,4 @@ This is a minor release of _Headroom_ that doesn't require to perform any migrat
 [v0400-v0410]: https://doc.norcane.com/headroom/v0.4.1.0/migration-guide
 [v0410-v0420]: https://doc.norcane.com/headroom/v0.4.2.0/migration-guide
 [v0420-v0430]: https://doc.norcane.com/headroom/v0.4.3.0/migration-guide
-[v0430-v0440]: https://doc.norcane.com/headroom/v0.4.4.0/migration-guide
+[v0430-v0500]: https://doc.norcane.com/headroom/v0.5.0.0/migration-guide
