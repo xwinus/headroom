@@ -24,6 +24,34 @@ spec = do
                 expected = LineComment s (Just "--")
             findPrefix syntax sample `shouldBe` expected
 
+        it "detects only comment syntax in a single-line variable template" $ do
+            let s = [re|^#|]
+                template = "# Copyright {{year}}"
+                rendered = "# Copyright 2026"
+                syntax = findPrefix (LineComment s Nothing) template
+            syntax `shouldBe` LineComment s (Just "#")
+            sanitizeSyntax syntax rendered `shouldBe` rendered
+
+        it "detects only comment syntax in a single-line static template" $ do
+            let s = [re|^#|]
+                template = "# Copyright 2026"
+                syntax = findPrefix (LineComment s Nothing) template
+            syntax `shouldBe` LineComment s (Just "#")
+            sanitizeSyntax syntax template `shouldBe` template
+
+        it "preserves whitespace matched by the line comment syntax" $ do
+            let s = [re|^#\h+|]
+                sample = "# Copyright"
+                syntax = LineComment s Nothing
+                expected = LineComment s (Just "# ")
+            findPrefix syntax sample `shouldBe` expected
+
+        it "leaves line prefix unknown when comment syntax does not match" $ do
+            let s = [re|^#|]
+                sample = "Copyright {{year}}"
+                syntax = LineComment s Nothing
+            findPrefix syntax sample `shouldBe` syntax
+
         it "finds and fills line prefix to BlockComment header syntax" $ do
             let s = [re|^{-\||]
                 e = [re|(?<!#)-}$|]

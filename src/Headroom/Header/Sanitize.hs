@@ -49,12 +49,18 @@ findPrefix
     -> HeaderSyntax
     -- ^ input 'HeaderSyntax' with added prefix (if found)
 findPrefix syntax text = case syntax of
-    BlockComment s e _ -> BlockComment s e prefix
-    LineComment s _ -> LineComment s prefix
+    BlockComment s e _ -> BlockComment s e commonPrefix
+    LineComment s _ -> LineComment s (linePrefix s)
   where
     filtered = filter cond . T.toLines $ text
     cond = \t -> (not . T.null . T.strip $ t) && isCommentBody syntax t
-    prefix = fmap T.stripEnd (T.commonLinesPrefix . T.fromLines $ filtered)
+    commonPrefix = fmap T.stripEnd (T.commonLinesPrefix . T.fromLines $ filtered)
+    linePrefix start = listToMaybe . mapMaybe (matchPrefix start) $ filtered
+    matchPrefix start line = do
+        (candidate, _) <- listToMaybe $ R.scan start line
+        guard (not $ T.null candidate)
+        guard $ candidate `T.isPrefixOf` line
+        pure candidate
 
 -- | Sanitizes given header text to make sure that each comment line starts with
 -- appropriate prefix (if defined within given 'HeaderSyntax'). For block
