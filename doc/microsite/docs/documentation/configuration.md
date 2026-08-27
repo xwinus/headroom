@@ -19,7 +19,7 @@ Below is the structure of `global-config.yaml` configuration file:
 
 ```yaml
 ## This is the global configuration file for Headroom.
-## See https://github.com/vaclavsvejcar/headroom for more details.
+## See https://github.com/xwinus/headroom for more details.
 
 ## Configuration for Headroom Updater.
 updates:
@@ -192,5 +192,5 @@ If you miss support for file type you use, feel free to [open new issue][meta:ne
 [doc:migration-guide]: ../migration-guide.md
 [doc:running-headroom#run-command]: running-headroom.md#run-command
 [doc:post-processing]: post-processing.md
-[file:embedded/default-config.yaml]: https://github.com/vaclavsvejcar/headroom/blob/master/embedded/default-config.yaml
-[meta:new-issue]: https://github.com/vaclavsvejcar/headroom/issues/new
+[file:embedded/default-config.yaml]: https://github.com/xwinus/headroom/blob/master/embedded/default-config.yaml
+[meta:new-issue]: https://github.com/xwinus/headroom/issues/new

@@ -102,7 +102,7 @@ fetchLatestVersion = do
     handleError = throwM . CannotDetectVersion . T.pack . displayException
     latestVersionApiURI =
         URI.mkURI
-            "https://api.github.com/repos/vaclavsvejcar/headroom/releases/latest"
+            "https://api.github.com/repos/xwinus/headroom/releases/latest"
 
 -- | Parses latest version number from /GitHub/ API response.
 parseLatestVersion

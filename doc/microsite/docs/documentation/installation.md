@@ -28,7 +28,7 @@ Headroom is written in [Haskell][web:haskell], so you can install it from source
 1. add `$HOME/.local/bin` to your `$PATH`
 
 
-[meta:releases]: https://github.com/vaclavsvejcar/headroom/releases
+[meta:releases]: https://github.com/xwinus/headroom/releases
 [web:cabal]: https://www.haskell.org/cabal/
 [web:haskell]: https://haskell.org
 [web:homebrew]: https://brew.sh

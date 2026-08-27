@@ -104,4 +104,4 @@ webDocMigration v = webDoc v <> "/migration-guide"
 
 -- | Product source code repository.
 webRepo :: Text
-webRepo = "https://github.com/vaclavsvejcar/headroom"
+webRepo = "https://github.com/xwinus/headroom"
