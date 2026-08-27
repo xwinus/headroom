@@ -91,15 +91,7 @@ commandP = subparser (runCommand <> genCommand <> initCommand)
 runOptions :: Parser Command
 runOptions =
     Run
-        <$> many
-            ( strOption
-                ( long "source-path"
-                    <> short 's'
-                    <> metavar "PATH"
-                    <> help
-                        "path to source code file/directory"
-                )
-            )
+        <$> sourcePathsP
         <*> many
             ( option
                 regexReader
@@ -174,6 +166,31 @@ runOptions =
             )
         <*> switch (long "debug" <> help "produce more verbose output")
         <*> switch (long "dry-run" <> help "execute dry run (no changes to files)")
+
+-- | Parses paths to source code files/directories, which can be given either
+-- as (possibly repeated) @-s|--source-path@ options, or as positional
+-- arguments. Paths from both sources are combined together.
+sourcePathsP :: Parser [FilePath]
+sourcePathsP = (<>) <$> optionsP <*> argumentsP
+  where
+    optionsP =
+        many
+            ( strOption
+                ( long "source-path"
+                    <> short 's'
+                    <> metavar "PATH"
+                    <> help
+                        "path to source code file/directory"
+                )
+            )
+    argumentsP =
+        many
+            ( strArgument
+                ( metavar "PATHS..."
+                    <> help
+                        "path to source code file/directory"
+                )
+            )
 
 genOptions :: Parser Command
 genOptions =

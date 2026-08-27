@@ -22,7 +22,8 @@ Below is the overview of command line interface of `run` command:
 
 ```
 $ headroom run --help
-Usage: headroom run [-s|--source-path PATH] [-e|--excluded-path REGEX] 
+Usage: headroom run [-s|--source-path PATH] [PATHS...] 
+                    [-e|--excluded-path REGEX] [--exclude-ignored-paths] 
                     [--builtin-templates licenseType] [-t|--template-path PATH] 
                     [-v|--variable KEY=VALUE] 
                     [(-a|--add-headers) | (-c|--check-headers) | 
@@ -32,7 +33,9 @@ Usage: headroom run [-s|--source-path PATH] [-e|--excluded-path REGEX]
 
 Available options:
   -s,--source-path PATH    path to source code file/directory
+  PATHS...                 path to source code file/directory
   -e,--excluded-path REGEX path to exclude from source code file paths
+  --exclude-ignored-paths  exclude paths ignored by used VCS
   --builtin-templates licenseType
                            use built-in templates of selected license type
   -t,--template-path PATH  path to template, can be either local file or
@@ -49,13 +52,25 @@ Available options:
 
 This command requires you to specify three key parameters, either using command line option, or in `.headroom.yaml` file:
 
-1. __paths to source code files__ - this needs to be specified either by using the `-s|--source-path PATH` option (can be repeated) or using the `source-paths` option in `.headroom.yaml`.
+1. __paths to source code files__ - this needs to be specified either by using the `-s|--source-path PATH` option (can be repeated), by passing the paths as positional arguments (e.g. `headroom run src/Foo.hs src/Bar.hs`, which plays nicely with shell expansion), or by using the `source-paths` option in `.headroom.yaml`. Paths from options and positional arguments are combined together.
 1. __paths to templates__ - you can freely combine all three supported sources of templates: First are built-in templates for one of supported _OSS_ licenses, which can be enabled by `--builtin-templates TYPE`. Second option is to use either templates stored on local file system or URI-based template. For local stored template, if path to directory is provided, _Headroom_ will recursively search for all suitable templates in all subdirectories.
 1. __paths to template files__ - you have two options here. Either specify path(s) to template files using `-t|--template-path PATH` (can be repeated) or `template-paths` option in `.headroom.yaml`, __or__ use the built-in templates using the `--builtin-templates TYPE`, where `TYPE` is one of the supported _OSS_ license types.
 1. __variables__ - if your templates use any variables, you need to specify their values using the `-v|--variable "KEY=VALUE"` option (can be repeated) or using the `variable` option in `.headroom.yaml`.
 1. __run mode__ _(optional)_ - if you don't specify this, the _add mode_ will be used as default, but you can set the run mode using one of the `-a,--add-headers`, `-c,--check-headers`, `-r,--replace-headers` or `-d,--drop-headers` options, or using the `run-mode` option in `.headroom.yaml`.
 
 For regular work, it's more comfortable to define as much options in `.headroom.yaml` and then you can just run _Headroom_ like `headroom run` or just override the _run mode_ like `headroom run -r`, but it's also completely fine to run _Headroom_ without the need to prepare any files (templates, `.headroom.yaml`) and define all the required stuff using command line options, as shown below:
+
+#### Using Headroom with treefmt
+Because the `run` command accepts source paths as positional arguments, _Headroom_ satisfies the [treefmt formatter specification][web:treefmt-spec] and can be used as a formatter without any wrapper script:
+
+```toml
+[formatter.headroom]
+command = "headroom"
+options = ["run"]
+includes = ["*.hs"]
+```
+
+Note that _Headroom_ still applies the `excluded-paths` rules from `.headroom.yaml` to the files passed on the command line.
 
 ### Gen Command
 This command allows to generate stubs for files required by _Headroom_, such as `.headroom.yaml` and template files. You'll likely need this command only once for manual initialization of _Headroom_ for your project. For more info how to use it, see the [Project Setup Guide][rel:project-setup-guide] chapter.
@@ -106,3 +121,4 @@ With this command, you need to define two required options:
 
 [rel:configuration]: configuration.md
 [rel:project-setup-guide]: project-setup-guide.md
+[web:treefmt-spec]: https://treefmt.com/latest/reference/formatter-spec/
