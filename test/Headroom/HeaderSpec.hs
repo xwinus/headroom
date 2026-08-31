@@ -28,7 +28,11 @@ import Headroom.FileSupport
     )
 import Headroom.FileType.Types (FileType (..))
 import Headroom.Header
-import Headroom.Header.Types (HeaderInfo (..))
+import Headroom.Header.Types
+    ( HeaderDetection (..)
+    , HeaderInfo (..)
+    , HeaderOrigin (..)
+    )
 import Headroom.IO.FileSystem (loadFile)
 import Headroom.SourceCode
     ( LineType (..)
@@ -59,7 +63,7 @@ spec = do
                 (BlockComment [re|^{-\||] [re|(?<!#)-}$|] Nothing)
 
     describe "addHeader" $ do
-        let headerInfo config = HeaderInfo Haskell config Nothing mempty
+        let headerInfo config = HeaderInfo Haskell config NoHeader mempty
 
         it "adds header at the beginning of text (with no margin)" $ do
             let info = headerInfo $ bHeaderConfig [] []
@@ -210,7 +214,12 @@ spec = do
             addHeader info header sample `shouldBe` expected
 
         it "does nothing if header is already present" $ do
-            let info = HeaderInfo Haskell config (Just (3, 3)) mempty
+            let info =
+                    HeaderInfo
+                        Haskell
+                        config
+                        (ManagedHeader ExactTemplate (3, 3))
+                        mempty
                 config = bHeaderConfig [[re|^before|]] []
                 header = "{-| HEADER -}"
                 sample =
@@ -227,7 +236,7 @@ spec = do
     describe "dropHeader" $ do
         it "does nothing if no header is present" $ do
             let config = bHeaderConfig [] []
-                info = HeaderInfo Haskell config Nothing mempty
+                info = HeaderInfo Haskell config NoHeader mempty
                 sample =
                     SourceCode
                         [ (Code, "1")
@@ -240,7 +249,12 @@ spec = do
 
         it "drops existing single line header" $ do
             let config = bHeaderConfig [] []
-                info = HeaderInfo Haskell config (Just (3, 3)) mempty
+                info =
+                    HeaderInfo
+                        Haskell
+                        config
+                        (ManagedHeader ExactTemplate (3, 3))
+                        mempty
                 sample =
                     SourceCode
                         [ (Code, "1")
@@ -262,7 +276,12 @@ spec = do
 
         it "drops existing multi line header" $ do
             let config = bHeaderConfig [] []
-                info = HeaderInfo Haskell config (Just (3, 4)) mempty
+                info =
+                    HeaderInfo
+                        Haskell
+                        config
+                        (ManagedHeader ExactTemplate (3, 4))
+                        mempty
                 sample =
                     SourceCode
                         [ (Code, "1")
@@ -285,7 +304,12 @@ spec = do
 
     describe "replaceHeader" $ do
         it "replaces existing header" $ do
-            let info = HeaderInfo Haskell config (Just (3, 3)) mempty
+            let info =
+                    HeaderInfo
+                        Haskell
+                        config
+                        (ManagedHeader ExactTemplate (3, 3))
+                        mempty
                 config = bHeaderConfig [[re|^before|]] []
                 header = "{-| HEADER -}"
                 sample =

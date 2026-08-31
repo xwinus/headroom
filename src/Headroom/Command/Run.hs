@@ -93,11 +93,13 @@ import Headroom.Header
     , dropHeader
     , extractHeaderInfo
     , extractHeaderTemplate
+    , identifyHeader
     , replaceHeader
     )
 import Headroom.Header.Sanitize (sanitizeSyntax)
 import Headroom.Header.Types
-    ( HeaderInfo (..)
+    ( HeaderDetection (..)
+    , HeaderInfo (..)
     , HeaderTemplate (..)
     )
 import Headroom.IO.FileSystem
@@ -338,11 +340,12 @@ processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
     fileContent <- fsLoadFile path
     let fs = fileSupport htFileType
         source = analyzeSourceCode fs fileContent
-        headerInfo@HeaderInfo{..} = extractHeaderInfo ht source
+        candidateInfo@HeaderInfo{..} = extractHeaderInfo ht source
         variables = dVars <> cVars <> hiVariables
         syntax = hcHeaderSyntax hiHeaderConfig
     header' <- renderTemplate variables htTemplate
     header <- postProcessHeader' @a syntax variables header'
+    let headerInfo = identifyHeader header source candidateInfo
     RunAction{..} <- chooseAction headerInfo header
     let result = raFunc source
         changed = raProcessed && (source /= result)
@@ -362,38 +365,58 @@ processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
 chooseAction :: (Has CtAppConfig env) => HeaderInfo -> Text -> RIO env RunAction
 chooseAction info header = do
     AppConfig{..} <- viewL @CtAppConfig
-    let hasHeader = isJust $ hiHeaderPos info
-    pure $ go acRunMode hasHeader
+    pure (go acRunMode $ hiHeaderDetection info)
   where
-    go runMode hasHeader = case runMode of
-        Add -> aAction hasHeader
-        Check -> cAction hasHeader
-        Drop -> dAction hasHeader
-        Replace -> rAction hasHeader
-    aAction hasHeader =
+    go runMode detection = case runMode of
+        Add -> aAction detection
+        Check -> cAction detection
+        Drop -> dAction detection
+        Replace -> rAction detection
+    aAction detection =
         RunAction
-            (not hasHeader)
+            (not $ isManaged detection)
             (addHeader info header)
             (justify "Adding header to:")
             (justify "Header already exists in:")
-    cAction hasHeader =
-        (rAction hasHeader)
+    cAction detection =
+        (checkBase detection)
             { raProcessedMsg = justify "Outdated header found in:"
             , raSkippedMsg = justify "Header up-to-date in:"
             }
-    dAction hasHeader =
-        RunAction
-            hasHeader
-            (dropHeader info)
-            (justify "Dropping header from:")
-            (justify "No header exists in:")
-    rAction hasHeader = if hasHeader then rAction' else go Add hasHeader
+    checkBase detection@ForeignComment{} = aAction detection
+    checkBase detection = rAction detection
+    dAction detection = case detection of
+        ManagedHeader{} ->
+            RunAction
+                True
+                (dropHeader info)
+                (justify "Dropping header from:")
+                (justify "No header exists in:")
+        ForeignComment{} -> foreignAction
+        NoHeader ->
+            RunAction
+                False
+                id
+                (justify "Dropping header from:")
+                (justify "No header exists in:")
+    rAction detection = case detection of
+        ManagedHeader{} -> rAction'
+        NoHeader -> go Add detection
+        ForeignComment{} -> foreignAction
     rAction' =
         RunAction
             True
             (replaceHeader info header)
             (justify "Replacing header in:")
             (justify "Header up-to-date in:")
+    foreignAction =
+        RunAction
+            False
+            id
+            (justify "Skipping foreign comment in:")
+            (justify "Foreign comment preserved in:")
+    isManaged ManagedHeader{} = True
+    isManaged _ = False
     justify = T.justifyLeft 30 ' '
 
 -- | Loads templates using given template references. If multiple sources define

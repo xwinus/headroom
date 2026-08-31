@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - [#114] Allow passing source paths as positional arguments
 - [#117] FIXED: Intermittent failures when multiple Headroom processes share single cache file
 - [#119] Update repository references after the GitHub account rename to _xwinus_
+- [#126] FIXED: Ordinary source comments can be mistaken for managed license headers
 - Bump _LTS Haskell_ to `24.56`
 
 ## 0.4.3.0 (released 2022-01-20)

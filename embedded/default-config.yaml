@@ -60,7 +60,10 @@ variables:
   _java_package_name: "!!! UNKNOWN JAVA PACKAGE NAME !!!"
   _purescript_module_name: "!!! INSERT PURESCRIPT MODULE NAME !!!"
 
-## Allows to change behaviour of license header detection and placement. Such
+## Allows to change behaviour of license header detection and placement. Header
+## ownership is checked only at the insertion point determined by these rules.
+## Headers are matched conservatively from their license content; ambiguous
+## comments are never replaced or removed. Such
 ## configuration is defined for every supported file type, where individual
 ## configuration keys are:
 ##
@@ -246,7 +249,7 @@ license-headers:
     margin-top-file: 0
     margin-bottom-code: 0
     margin-bottom-file: 0
-    put-after: []
+    put-after: ['^<\?php']
     put-before: []
     block-comment:
       starts-with: ^\/\*\*
