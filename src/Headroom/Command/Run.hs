@@ -39,26 +39,25 @@ module Headroom.Command.Run
     )
 where
 
-import Control.Monad.Extra (ifM)
 import Data.String.Interpolate
     ( i
     , iii
     )
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.VCS.Ignore
-    ( Git
-    , Repo (..)
-    , findRepo
-    )
 import Headroom.Command.Bootstrap
     ( bootstrap
     , globalKVStore
     , runRIO'
     )
+import Headroom.Command.Run.Action
+    ( RunAction (..)
+    , chooseAction
+    )
 import Headroom.Command.Run.Config
     ( currentYear
     , finalConfiguration
     )
+import Headroom.Command.Run.Discovery (walkSourceFiles)
 import Headroom.Command.Run.Write
     ( CommandRunError (..)
     , writeSourceFile
@@ -89,22 +88,18 @@ import Headroom.FileSupport
 import Headroom.FileType (fileTypeByExt)
 import Headroom.FileType.Types (FileType (..))
 import Headroom.Header
-    ( addHeader
-    , dropHeader
-    , extractHeaderInfo
+    ( extractHeaderInfo
     , extractHeaderTemplate
     , identifyHeader
-    , replaceHeader
     )
 import Headroom.Header.Sanitize (sanitizeSyntax)
 import Headroom.Header.Types
-    ( HeaderDetection (..)
-    , HeaderInfo (..)
+    ( HeaderInfo (..)
     , HeaderTemplate (..)
     )
 import Headroom.IO.FileSystem
     ( FileSystem (..)
-    , excludePaths
+    , WalkResult (..)
     , fileExtension
     , mkFileSystem
     )
@@ -121,8 +116,7 @@ import Headroom.PostProcess
     , postProcessHeader
     )
 import Headroom.SourceCode
-    ( SourceCode
-    , toText
+    ( toText
     )
 import Headroom.Template (Template (..))
 import Headroom.Template.TemplateRef
@@ -132,7 +126,6 @@ import Headroom.Template.TemplateRef
 import Headroom.Types (CurrentYear (..))
 import Headroom.UI
     ( Progress (..)
-    , zipWithProgress
     )
 import Headroom.UI.Table (Table2 (..))
 import Headroom.Variables
@@ -147,14 +140,6 @@ import qualified RIO.Map as M
 import qualified RIO.Text as T
 
 suffixLensesFor ["acPostProcessConfigs"] ''AppConfig
-
--- | Action to be performed based on the selected 'RunMode'.
-data RunAction = RunAction
-    { raProcessed :: Bool
-    , raFunc :: SourceCode -> SourceCode
-    , raProcessedMsg :: Text
-    , raSkippedMsg :: Text
-    }
 
 -- | Full /RIO/ environment for the /Run/ command.
 data Env = Env
@@ -223,9 +208,9 @@ commandRun opts = runRIO' (getEnv opts) (croDebug opts) $ do
     warnOnDryRun
     startTS <- liftIO getPOSIXTime
     templates <- loadTemplates
-    sourceFiles <- findSourceFiles (M.keys templates)
     _ <- logInfo "-----"
-    (total, processed) <- processSourceFiles @TemplateType templates sourceFiles
+    (total, processed) <-
+        processSourceFiles @TemplateType templates (M.keys templates)
     endTS <- liftIO getPOSIXTime
     when (processed > 0) $ logStickyDone "-----"
     logStickyDone
@@ -247,50 +232,6 @@ warnOnDryRun = do
     CommandRunOptions{..} <- viewL
     when croDryRun $ logWarn "[!] Running with '--dry-run', no files are changed!"
 
-findSourceFiles
-    :: (Has CtAppConfig env, HasRIO FileSystem env, HasLogFunc env)
-    => [FileType]
-    -> RIO env [FilePath]
-findSourceFiles fileTypes = do
-    AppConfig{..} <- viewL
-    FileSystem{..} <- viewL
-    logDebug $ "Using source paths: " <> displayShow acSourcePaths
-    files <-
-        mconcat
-            <$> mapM (fsFindFilesByTypes acLicenseHeaders fileTypes) acSourcePaths
-    notIgnored <- excludePaths acExcludedPaths <$> excludeIgnored files
-    logInfo
-        [iii|
-      Found #{length notIgnored} files to process
-      (excluded #{length files - length notIgnored})
-    |]
-    pure notIgnored
-
-excludeIgnored
-    :: (Has CtAppConfig env, HasRIO FileSystem env, HasLogFunc env)
-    => [FilePath]
-    -> RIO env [FilePath]
-excludeIgnored paths = do
-    AppConfig{..} <- viewL @CtAppConfig
-    FileSystem{..} <- viewL
-    currentDir <- fsGetCurrentDirectory
-    maybeRepo <-
-        ifM
-            (pure acExcludeIgnoredPaths)
-            (findRepo' currentDir)
-            (pure Nothing)
-    case maybeRepo of
-        Just repo -> filterM (fmap not . isIgnored repo) paths
-        Nothing -> pure paths
-  where
-    findRepo' dir = do
-        logInfo "Searching for VCS repository to extract exclude patterns from..."
-        maybeRepo <- findRepo @_ @Git dir
-        case maybeRepo of
-            Just r -> logInfo [i|Found #{repoName r} repository in: #{dir}|]
-            _ -> logInfo [i|No VCS repository found in: #{dir}|]
-        pure maybeRepo
-
 processSourceFiles
     :: forall a env
      . ( Template a
@@ -302,20 +243,39 @@ processSourceFiles
        , HasRIO FileSystem env
        )
     => Map FileType HeaderTemplate
-    -> [FilePath]
+    -> [FileType]
     -> RIO env (Int, Int)
-processSourceFiles templates paths = do
+processSourceFiles templates fileTypes = do
     AppConfig{..} <- viewL
     year <- viewL
     let dVars = dynamicVariables year
-        withTemplate = mapMaybe (template acLicenseHeaders) paths
+        templateFor path = do
+            fileType <- fileExtension path >>= fileTypeByExt acLicenseHeaders
+            guard $ fileType `elem` fileTypes
+            (,path) <$> M.lookup fileType templates
     cVars <- compileVariables @a (dVars <> acVariables)
-    processed <- mapM (process cVars dVars) (zipWithProgress withTemplate)
-    pure (length withTemplate, length . filter id $ processed)
-  where
-    fileType c p = fileExtension p >>= fileTypeByExt c
-    template c p = (,p) <$> (fileType c p >>= \ft -> M.lookup ft templates)
-    process cVars dVars (pr, (ht, p)) = processSourceFile @a cVars dVars pr ht p
+    progressRef <- newIORef 0
+    processedRef <- newIORef 0
+    WalkResult{..} <- walkSourceFiles (isJust . templateFor) $ \path ->
+        forM_ (templateFor path) $ \(template, sourcePath) -> do
+            progress <- atomicModifyIORef' progressRef $ \current ->
+                let next = current + 1
+                 in (next, CurrentProgress next)
+            changed <-
+                processSourceFile @a cVars dVars progress template sourcePath
+            when
+                changed
+                (atomicModifyIORef' processedRef $ \count -> (count + 1, ()))
+    processed <- readIORef processedRef
+    logInfo
+        [iii|
+      Discovered #{wrFilesFound} files
+      (pruned #{wrDirectoriesPruned} directories)
+    |]
+    when (wrFileSystemErrors > 0)
+        . logWarn
+        $ [i|Skipped #{wrFileSystemErrors} unreadable or invalid paths|]
+    pure (wrFilesFound, processed)
 
 processSourceFile
     :: forall a env
@@ -361,63 +321,6 @@ processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
         fileContent
         (toText result)
     pure changed
-
-chooseAction :: (Has CtAppConfig env) => HeaderInfo -> Text -> RIO env RunAction
-chooseAction info header = do
-    AppConfig{..} <- viewL @CtAppConfig
-    pure (go acRunMode $ hiHeaderDetection info)
-  where
-    go runMode detection = case runMode of
-        Add -> aAction detection
-        Check -> cAction detection
-        Drop -> dAction detection
-        Replace -> rAction detection
-    aAction detection =
-        RunAction
-            (not $ isManaged detection)
-            (addHeader info header)
-            (justify "Adding header to:")
-            (justify "Header already exists in:")
-    cAction detection =
-        (checkBase detection)
-            { raProcessedMsg = justify "Outdated header found in:"
-            , raSkippedMsg = justify "Header up-to-date in:"
-            }
-    checkBase detection@ForeignComment{} = aAction detection
-    checkBase detection = rAction detection
-    dAction detection = case detection of
-        ManagedHeader{} ->
-            RunAction
-                True
-                (dropHeader info)
-                (justify "Dropping header from:")
-                (justify "No header exists in:")
-        ForeignComment{} -> foreignAction
-        NoHeader ->
-            RunAction
-                False
-                id
-                (justify "Dropping header from:")
-                (justify "No header exists in:")
-    rAction detection = case detection of
-        ManagedHeader{} -> rAction'
-        NoHeader -> go Add detection
-        ForeignComment{} -> foreignAction
-    rAction' =
-        RunAction
-            True
-            (replaceHeader info header)
-            (justify "Replacing header in:")
-            (justify "Header up-to-date in:")
-    foreignAction =
-        RunAction
-            False
-            id
-            (justify "Skipping foreign comment in:")
-            (justify "Foreign comment preserved in:")
-    isManaged ManagedHeader{} = True
-    isManaged _ = False
-    justify = T.justifyLeft 30 ' '
 
 -- | Loads templates using given template references. If multiple sources define
 -- template for the same 'FileType', then the preferred one (based on ordering

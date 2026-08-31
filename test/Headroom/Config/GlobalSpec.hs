@@ -73,6 +73,7 @@ env =
                 , fsSetPermissions = undefined
                 , fsWriteTempFile = undefined
                 , fsWriteFile = undefined
+                , fsWalkFiles = undefined
                 }
         }
 

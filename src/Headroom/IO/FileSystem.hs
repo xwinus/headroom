@@ -16,6 +16,9 @@
 module Headroom.IO.FileSystem
     ( -- * Data Types
       AtomicWriteResult (..)
+    , WalkPathKind (..)
+    , WalkOptions (..)
+    , WalkResult (..)
 
       -- * Type Aliases
     , CreateDirectoryFn
@@ -35,6 +38,7 @@ module Headroom.IO.FileSystem
     , SetPermissionsFn
     , WriteTempFileFn
     , WriteFileFn
+    , WalkFilesFn
 
       -- * Polymorphic Record
     , FileSystem (..)
@@ -46,6 +50,7 @@ module Headroom.IO.FileSystem
     , findFilesByTypes
     , listFiles
     , loadFile
+    , walkFiles
 
       -- * Writing Files
     , atomicWriteFile
@@ -65,6 +70,13 @@ import Headroom.Data.Regex
     )
 import Headroom.FileType (listExtensions)
 import Headroom.FileType.Types (FileType)
+import Headroom.IO.FileSystem.Walk
+    ( WalkFilesFn
+    , WalkOptions (..)
+    , WalkPathKind (..)
+    , WalkResult (..)
+    , walkFiles
+    )
 import RIO
 import qualified RIO.ByteString as B
 import RIO.Directory
@@ -247,6 +259,8 @@ data FileSystem m = FileSystem
     -- ^ Function that writes content to a unique temporary file.
     , fsWriteFile :: WriteFileFn m
     -- ^ Function that writes file content in UTF-8 encoding.
+    , fsWalkFiles :: WalkFilesFn m
+    -- ^ Function that walks source paths with pruning and deduplication.
     }
 
 -- | Creates new 'FileSystem' that performs actual disk /IO/ operations.
@@ -270,6 +284,7 @@ mkFileSystem =
         , fsSetPermissions = setPermissions
         , fsWriteTempFile = writeTempFile
         , fsWriteFile = writeFileUtf8
+        , fsWalkFiles = walkFiles
         }
 
 ------------------------------  PUBLIC FUNCTIONS  ------------------------------
