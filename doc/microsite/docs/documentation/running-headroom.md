@@ -17,7 +17,7 @@ Let's start with the most useful one. This command allows you to manipulate lice
 
 Changed source files are written through a temporary file in the same directory and replaced atomically. Headroom verifies the original content immediately before replacement; if another process changed the file while it was being processed, the command aborts without overwriting that newer content. Check mode and `--dry-run` never write source files.
 
-Headroom-generated headers contain paired, versioned ownership markers. These markers delimit the exact lines that `replace` and `drop` may change, even when a documentation comment immediately follows the header. For migration, an unmarked legacy header is considered owned only when its normalized text exactly matches the currently rendered template. A different, malformed, or otherwise ambiguous comment is treated as foreign and is never replaced or removed.
+Headroom does not add ownership metadata to source files. A header is considered managed when its normalized content exactly matches the rendered template, or when a conservative fingerprint finds strong matching license evidence such as identical SPDX metadata or substantial aligned legal boilerplate. Short, different, malformed, or otherwise ambiguous comments are treated as foreign and are never replaced or removed. This means a very short outdated custom header may require manual migration before Headroom can safely manage it.
 
 #### Command Line Interface
 Below is the overview of command line interface of `run` command:

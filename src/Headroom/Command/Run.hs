@@ -96,7 +96,6 @@ import Headroom.Header
     , identifyHeader
     , replaceHeader
     )
-import Headroom.Header.Marker (markHeader)
 import Headroom.Header.Sanitize (sanitizeSyntax)
 import Headroom.Header.Types
     ( HeaderDetection (..)
@@ -345,9 +344,8 @@ processSourceFile cVars dVars progress ht@HeaderTemplate{..} path = do
         variables = dVars <> cVars <> hiVariables
         syntax = hcHeaderSyntax hiHeaderConfig
     header' <- renderTemplate variables htTemplate
-    expectedHeader <- postProcessHeader' @a syntax variables header'
-    let headerInfo = identifyHeader expectedHeader source candidateInfo
-        header = markHeader syntax expectedHeader
+    header <- postProcessHeader' @a syntax variables header'
+    let headerInfo = identifyHeader header source candidateInfo
     RunAction{..} <- chooseAction headerInfo header
     let result = raFunc source
         changed = raProcessed && (source /= result)

@@ -62,8 +62,8 @@ variables:
 
 ## Allows to change behaviour of license header detection and placement. Header
 ## ownership is checked only at the insertion point determined by these rules.
-## Generated headers use paired ownership markers; an unmarked legacy header is
-## managed only when it exactly matches the currently rendered template. Such
+## Headers are matched conservatively from their license content; ambiguous
+## comments are never replaced or removed. Such
 ## configuration is defined for every supported file type, where individual
 ## configuration keys are:
 ##

@@ -55,12 +55,11 @@ import Headroom.FileSupport (fileSupport)
 import Headroom.FileSupport.Types (FileSupport (..))
 import Headroom.FileType (configByFileType)
 import Headroom.FileType.Types (FileType)
-import Headroom.Header.Marker (markerPosition)
+import Headroom.Header.Fingerprint (matchHeader)
 import Headroom.Header.Sanitize (findPrefix)
 import Headroom.Header.Types
     ( HeaderDetection (..)
     , HeaderInfo (..)
-    , HeaderOrigin (..)
     , HeaderPosition
     , HeaderTemplate (..)
     , candidateHeaderPosition
@@ -77,7 +76,6 @@ import Headroom.SourceCode
     , lastMatching
     , stripEnd
     , stripStart
-    , toText
     )
 import Headroom.Template (Template (..))
 import RIO
@@ -127,24 +125,21 @@ extractHeaderTemplate configs fileType template =
     withP = \config -> config & hcHeaderSyntaxL %~ headerSyntax
     headerSyntax = \hs -> findPrefix hs (rawTemplate template)
 
--- | Classifies a syntactic comment candidate using explicit ownership markers
--- or an exact match with the currently rendered legacy template.
+-- | Classifies a syntactic comment candidate using a conservative fingerprint
+-- of the currently rendered template.
 identifyHeader :: Text -> SourceCode -> HeaderInfo -> HeaderInfo
 identifyHeader expected source info@HeaderInfo{..} =
     info{hiHeaderDetection = classify hiHeaderDetection}
   where
     classify NoHeader = NoHeader
     classify managed@ManagedHeader{} = managed
-    classify unmanaged@(ForeignComment position@(start, end)) =
+    classify unmanaged@(ForeignComment (start, end)) =
         let candidate = cut start (end + 1) source
             candidateLines = fmap snd (coerce candidate :: [CodeLine])
-         in case markerPosition (hcHeaderSyntax hiHeaderConfig) start candidateLines of
-                Just markedPosition -> ManagedHeader HeadroomMarker markedPosition
-                Nothing
-                    | normalize (toText candidate) == normalize expected ->
-                        ManagedHeader LegacyTemplate position
-                    | otherwise -> unmanaged
-    normalize = T.unlines . fmap T.stripEnd . T.lines . T.strip
+         in case matchHeader (hcHeaderSyntax hiHeaderConfig) expected candidateLines of
+                Just (origin, lineCount) ->
+                    ManagedHeader origin (start, start + lineCount - 1)
+                Nothing -> unmanaged
 
 -- | Adds given header at the configured insertion point. Does nothing when a
 -- managed header is already present. Foreign comments are preserved.
@@ -239,8 +234,8 @@ findBlockCandidate start end (SourceCode lines') offset = do
     (_, firstLine) <- L.headMaybe lines'
     guard $ isMatch start (T.strip firstLine)
     let comments = takeWhile ((== Comment) . fst) lines'
-    guard $ any (isMatch end . T.strip . snd) comments
-    pure (offset, offset + length comments - 1)
+    endIndex <- L.findIndex (isMatch end . T.strip . snd) comments
+    pure (offset, offset + endIndex)
 
 findLineCandidate :: Regex -> SourceCode -> Int -> Maybe HeaderPosition
 findLineCandidate prefix (SourceCode lines') offset = do

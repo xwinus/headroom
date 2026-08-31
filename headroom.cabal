@@ -4,12 +4,12 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9c23004a2d61ff4c1597e94e03014ca7495d81920e06f0400b846ebac4005306
+-- hash: 244a3499f63821bb5745451f467aee99e87184c89497efc7513e04535c9aa6ed
 
 name:           headroom
 version:        0.5.0.0
 synopsis:       License Header Manager
-description:    Headroom adds, updates, checks, and removes license and copyright headers in source code files. Define headers as Mustache templates, keep their variables in a YAML configuration file, and apply them consistently across your project. Headroom includes templates for popular open source licenses and conservatively recognizes exact legacy headers.
+description:    Headroom adds, updates, checks, and removes license and copyright headers in source code files. Define headers as Mustache templates, keep their variables in a YAML configuration file, and apply them consistently across your project. Headroom includes templates for popular open source licenses and conservatively recognizes legacy headers from their license content.
 category:       Utils
 homepage:       https://github.com/xwinus/headroom
 bug-reports:    https://github.com/xwinus/headroom/issues
@@ -230,7 +230,7 @@ library
       Headroom.FileType
       Headroom.FileType.Types
       Headroom.Header
-      Headroom.Header.Marker
+      Headroom.Header.Fingerprint
       Headroom.Header.Sanitize
       Headroom.Header.Types
       Headroom.IO.FileSystem

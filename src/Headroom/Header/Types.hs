@@ -37,8 +37,8 @@ type HeaderPosition = (Int, Int)
 
 -- | Evidence used to establish ownership of a managed header.
 data HeaderOrigin
-    = HeadroomMarker
-    | LegacyTemplate
+    = ExactTemplate
+    | TemplateFingerprint
     deriving (Eq, Show)
 
 -- | Result of classifying the comment at the configured insertion point.

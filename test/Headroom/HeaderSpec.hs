@@ -218,7 +218,7 @@ spec = do
                     HeaderInfo
                         Haskell
                         config
-                        (ManagedHeader LegacyTemplate (3, 3))
+                        (ManagedHeader ExactTemplate (3, 3))
                         mempty
                 config = bHeaderConfig [[re|^before|]] []
                 header = "{-| HEADER -}"
@@ -253,7 +253,7 @@ spec = do
                     HeaderInfo
                         Haskell
                         config
-                        (ManagedHeader LegacyTemplate (3, 3))
+                        (ManagedHeader ExactTemplate (3, 3))
                         mempty
                 sample =
                     SourceCode
@@ -280,7 +280,7 @@ spec = do
                     HeaderInfo
                         Haskell
                         config
-                        (ManagedHeader LegacyTemplate (3, 4))
+                        (ManagedHeader ExactTemplate (3, 4))
                         mempty
                 sample =
                     SourceCode
@@ -308,7 +308,7 @@ spec = do
                     HeaderInfo
                         Haskell
                         config
-                        (ManagedHeader LegacyTemplate (3, 3))
+                        (ManagedHeader ExactTemplate (3, 3))
                         mempty
                 config = bHeaderConfig [[re|^before|]] []
                 header = "{-| HEADER -}"

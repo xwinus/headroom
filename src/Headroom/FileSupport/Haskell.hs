@@ -63,7 +63,6 @@ import Headroom.Config.Types
     , HeaderSyntax (..)
     )
 import Headroom.FileType.Types (FileType (Haskell))
-import Headroom.Header.Marker (isHeaderMarkerLine)
 import Headroom.Header.Types (HeaderTemplate (..))
 import Headroom.SourceCode
     ( LineType (..)
@@ -122,13 +121,11 @@ extractVariables HeaderTemplate{..} headerPos source =
         ]
   where
     HaddockModuleHeader{..} = extractModuleHeader header htTemplateData syntax
-    header = withoutMarkers $ maybe mempty (\(s, e) -> cut s e source) headerPos'
+    header = maybe mempty (\(s, e) -> cut s e source) headerPos'
     syntax = hcHeaderSyntax htConfig
     headerPos' = case syntax of
         LineComment{} -> fmap (\(s, e) -> (s + 1, e + 1)) headerPos
         BlockComment{} -> headerPos
-    withoutMarkers (SourceCode lines') =
-        SourceCode $ filter (not . isHeaderMarkerLine . snd) lines'
 
 extractModuleName :: SourceCode -> Maybe Text
 extractModuleName = fmap snd . firstMatching f

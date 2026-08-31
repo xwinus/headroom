@@ -14,7 +14,7 @@ description: >
   source code files. Define headers as Mustache templates, keep their variables
   in a YAML configuration file, and apply them consistently across your project.
   Headroom includes templates for popular open source licenses and
-  conservatively recognizes exact legacy headers.
+  conservatively recognizes legacy headers from their license content.
 
 extra-source-files:
   - CHANGELOG.md
