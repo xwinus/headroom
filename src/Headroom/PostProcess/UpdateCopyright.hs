@@ -32,8 +32,9 @@ where
 import Data.String.Interpolate (i)
 import Headroom.Data.Has (Has (..))
 import Headroom.Data.Regex
-    ( re
-    , replace
+    ( match
+    , re
+    , scan
     )
 import Headroom.Data.Text
     ( mapLines
@@ -58,6 +59,15 @@ data UpdateCopyrightMode
       UpdateSelectedAuthors SelectedAuthors
     deriving (Eq, Show)
 
+-- | Parsed parts of a single copyright statement.
+data CopyrightStatement = CopyrightStatement
+    { csPrefix :: Text
+    , csStartYear :: Integer
+    , csEndYear :: Maybe Integer
+    , csAuthorText :: Text
+    }
+    deriving (Eq, Show)
+
 ------------------------------  PUBLIC FUNCTIONS  ------------------------------
 
 -- | /Post-processor/ that updates years and year ranges in any
@@ -74,12 +84,14 @@ updateCopyright = PostProcess $ \input -> do
     mode <- viewL
     pure $ mapLines (update mode currentYear) input
   where
-    update mode year line
-        | shouldUpdate mode line = updateYears year line
-        | otherwise = line
+    update mode year line = case parseCopyrightStatement line of
+        Just statement
+            | shouldUpdate mode statement ->
+                renderCopyrightStatement year statement
+        _ -> line
     shouldUpdate UpdateAllAuthors _ = True
-    shouldUpdate (UpdateSelectedAuthors (SelectedAuthors authors)) input =
-        any (`T.isInfixOf` input) (NE.toList authors)
+    shouldUpdate (UpdateSelectedAuthors (SelectedAuthors authors)) statement =
+        any (`T.isInfixOf` csAuthorText statement) (NE.toList authors)
 
 -- | Updates years and years ranges in given text.
 --
@@ -101,13 +113,42 @@ updateYears
     -- ^ text to update
     -> Text
     -- ^ text with updated years
-updateYears cy = replace [re|(\d{4})(?:-)?(\d{4})?|] go
+updateYears cy = mapLines updateLine
   where
-    go _ [r1] | (Just y1) <- read r1 = bumpYear cy y1
-    go _ rs@[_, _] | [Just y1, Just y2] <- read <$> rs = bumpRange cy y1 y2
-    go other _ = other
+    updateLine line = case parseCopyrightStatement line of
+        Just statement -> renderCopyrightStatement cy statement
+        Nothing -> line
 
 ------------------------------  PRIVATE FUNCTIONS  -----------------------------
+
+parseCopyrightStatement :: Text -> Maybe CopyrightStatement
+parseCopyrightStatement input = do
+    guard . isSingleCopyright $ input
+    case match statementPattern input of
+        Just [_, prefix, rawStartYear, rawEndYear, authorText] -> do
+            startYear <- read rawStartYear
+            endYear <- parseEndYear rawEndYear
+            guard $ maybe True (startYear <=) endYear
+            guard . not $ hasAmbiguousLeadingYear authorText
+            pure $ CopyrightStatement prefix startYear endYear authorText
+        _ -> Nothing
+  where
+    statementPattern =
+        [re|^([^\r\n]*?\b(?i:copyright)\b(?:\h+|\h*:\h*)(?:(?:\([cC]\)|©)\h*)?)([12]\d{3})(?:-([12]\d{3}))?((?:\h+.*)?)$|]
+    isSingleCopyright text =
+        length (scan [re|\b(?i:copyright)\b|] text) == 1
+    parseEndYear "" = Just Nothing
+    parseEndYear raw = Just <$> read raw
+    hasAmbiguousLeadingYear author =
+        isJust $ match [re|^\h+\d{4}(?:\b|-)|] author
+
+renderCopyrightStatement :: CurrentYear -> CopyrightStatement -> Text
+renderCopyrightStatement cy (CopyrightStatement prefix startYear endYear author) =
+    prefix <> updatedYears <> author
+  where
+    updatedYears = case endYear of
+        Just end -> bumpRange cy startYear end
+        Nothing -> bumpYear cy startYear
 
 bumpYear :: CurrentYear -> Integer -> Text
 bumpYear (CurrentYear cy) y
