@@ -11,7 +11,7 @@
 
 **Headroom** adds, updates, checks, and removes license headers in source code files. Define a header once as a [Mustache][web:mustache] template, keep its variables in a [YAML][wiki:yaml] configuration file, and apply it consistently across your project.
 
-Headroom includes templates for popular open source licenses, understands the structure of selected source file types, and can detect headers that it did not generate.
+Headroom includes templates for popular open source licenses, understands the structure of selected source file types, and conservatively recognizes legacy headers that exactly match the configured template.
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ Headroom renders the header in each matching source file:
 
 ## Main Features
 
-- **Smart header management** — Add, replace, check, or remove headers, including headers that Headroom did not generate.
+- **Safe header management** — Add, replace, check, or remove owned headers while preserving unrelated source documentation and comments.
 - **Built-in OSS licenses** — Generate ready-to-use templates for popular open source licenses.
 - **Flexible configuration** — Control source paths, exclusions, margins, comment styles, and header placement through YAML.
 - **Content-aware templates** — Use information extracted from the processed file, such as a Java package name or Haskell module metadata.

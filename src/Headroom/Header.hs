@@ -21,6 +21,7 @@ module Headroom.Header
     ( -- * Header Info Extraction
       extractHeaderInfo
     , extractHeaderTemplate
+    , identifyHeader
 
       -- * License header manipulation
     , addHeader
@@ -54,21 +55,29 @@ import Headroom.FileSupport (fileSupport)
 import Headroom.FileSupport.Types (FileSupport (..))
 import Headroom.FileType (configByFileType)
 import Headroom.FileType.Types (FileType)
+import Headroom.Header.Marker (markerPosition)
 import Headroom.Header.Sanitize (findPrefix)
 import Headroom.Header.Types
-    ( HeaderInfo (..)
+    ( HeaderDetection (..)
+    , HeaderInfo (..)
+    , HeaderOrigin (..)
+    , HeaderPosition
     , HeaderTemplate (..)
+    , candidateHeaderPosition
+    , managedHeaderPosition
     )
 import Headroom.Meta (TemplateType)
 import Headroom.SourceCode
     ( CodeLine
     , LineType (..)
     , SourceCode (..)
+    , cut
     , firstMatching
     , fromText
     , lastMatching
     , stripEnd
     , stripStart
+    , toText
     )
 import Headroom.Template (Template (..))
 import RIO
@@ -76,7 +85,7 @@ import qualified RIO.List as L
 import qualified RIO.Text as T
 
 suffixLensesFor ["hcHeaderSyntax"] ''HeaderConfig
-suffixLensesFor ["hiHeaderPos"] ''HeaderInfo
+suffixLensesFor ["hiHeaderDetection"] ''HeaderInfo
 
 -- | Extracts info about the processed file to be later used by the header
 -- detection/manipulation functions.
@@ -90,8 +99,9 @@ extractHeaderInfo
 extractHeaderInfo ht@HeaderTemplate{..} source =
     let hiFileType = htFileType
         hiHeaderConfig = htConfig
-        hiHeaderPos = findHeader hiHeaderConfig source
-        hiVariables = fsExtractVariables ht hiHeaderPos source
+        hiHeaderDetection = maybe NoHeader ForeignComment $ findHeader hiHeaderConfig source
+        hiVariables =
+            fsExtractVariables ht (candidateHeaderPosition hiHeaderDetection) source
      in HeaderInfo{..}
   where
     FileSupport{..} = fileSupport htFileType
@@ -117,9 +127,27 @@ extractHeaderTemplate configs fileType template =
     withP = \config -> config & hcHeaderSyntaxL %~ headerSyntax
     headerSyntax = \hs -> findPrefix hs (rawTemplate template)
 
--- | Adds given header at position specified by the 'HeaderInfo'. Does nothing
--- if any header is already present, use 'replaceHeader' if you need to
--- override it.
+-- | Classifies a syntactic comment candidate using explicit ownership markers
+-- or an exact match with the currently rendered legacy template.
+identifyHeader :: Text -> SourceCode -> HeaderInfo -> HeaderInfo
+identifyHeader expected source info@HeaderInfo{..} =
+    info{hiHeaderDetection = classify hiHeaderDetection}
+  where
+    classify NoHeader = NoHeader
+    classify managed@ManagedHeader{} = managed
+    classify unmanaged@(ForeignComment position@(start, end)) =
+        let candidate = cut start (end + 1) source
+            candidateLines = fmap snd (coerce candidate :: [CodeLine])
+         in case markerPosition (hcHeaderSyntax hiHeaderConfig) start candidateLines of
+                Just markedPosition -> ManagedHeader HeadroomMarker markedPosition
+                Nothing
+                    | normalize (toText candidate) == normalize expected ->
+                        ManagedHeader LegacyTemplate position
+                    | otherwise -> unmanaged
+    normalize = T.unlines . fmap T.stripEnd . T.lines . T.strip
+
+-- | Adds given header at the configured insertion point. Does nothing when a
+-- managed header is already present. Foreign comments are preserved.
 addHeader
     :: HeaderInfo
     -- ^ additional info about the header
@@ -129,7 +157,7 @@ addHeader
     -- ^ source code where to add the header
     -> SourceCode
     -- ^ resulting source code with added header
-addHeader HeaderInfo{..} _ source | isJust hiHeaderPos = source
+addHeader HeaderInfo{hiHeaderDetection = ManagedHeader{}} _ source = source
 addHeader HeaderInfo{..} header source = mconcat chunks
   where
     HeaderConfig{..} = hiHeaderConfig
@@ -144,8 +172,8 @@ addHeader HeaderInfo{..} header source = mconcat chunks
     marginB = margin (middle' <> after) hcMarginBottomCode hcMarginBottomFile
     chunks = [before', marginT, header', marginB, middle', after]
 
--- | Drops header at position specified by the 'HeaderInfo' from the given
--- source code. Does nothing if no header is present.
+-- | Drops the managed header specified by the 'HeaderInfo'. Foreign comments
+-- and files without a header are left untouched.
 dropHeader
     :: HeaderInfo
     -- ^ additional info about the header
@@ -153,16 +181,17 @@ dropHeader
     -- ^ text of the file from which to drop the header
     -> SourceCode
     -- ^ resulting text with dropped header
-dropHeader (HeaderInfo _ _ Nothing _) source = source
-dropHeader (HeaderInfo _ _ (Just (start, end)) _) source = result
+dropHeader HeaderInfo{hiHeaderDetection = detection} source = case managedHeaderPosition detection of
+    Nothing -> source
+    Just (start, end) -> result start end
   where
-    before = inner @_ @[CodeLine] (take start) source
-    after = inner @_ @[CodeLine] (drop $ end + 1) source
-    result = stripEnd before <> stripStart after
+    result start end =
+        let before = inner @_ @[CodeLine] (take start) source
+            after = inner @_ @[CodeLine] (drop $ end + 1) source
+         in stripEnd before <> stripStart after
 
--- | Replaces existing header at position specified by the 'HeaderInfo' in the
--- given text. Basically combines 'addHeader' with 'dropHeader'. If no header
--- is present, then the given one is added to the text.
+-- | Replaces an existing managed header, adds one if no candidate exists, and
+-- leaves foreign comments untouched.
 replaceHeader
     :: HeaderInfo
     -- ^ additional info about the header
@@ -172,11 +201,12 @@ replaceHeader
     -- ^ text of the file where to replace the header
     -> SourceCode
     -- ^ resulting text with replaced header
-replaceHeader fileInfo header = addHeader' . dropHeader'
+replaceHeader info@HeaderInfo{hiHeaderDetection = detection} header source = case detection of
+    ManagedHeader{} -> addHeader infoWithoutDetection header $ dropHeader info source
+    NoHeader -> addHeader info header source
+    ForeignComment{} -> source
   where
-    addHeader' = addHeader infoWithoutPos header
-    dropHeader' = dropHeader fileInfo
-    infoWithoutPos = fileInfo & hiHeaderPosL .~ Nothing
+    infoWithoutDetection = info & hiHeaderDetectionL .~ NoHeader
 
 -- | Finds header position in given text, where position is represented by
 -- line number of first and last line of the header (numbered from zero).
@@ -185,8 +215,8 @@ replaceHeader fileInfo header = addHeader' . dropHeader'
 --
 -- >>> import Headroom.Data.Regex (re)
 -- >>> let hc = HeaderConfig ["hs"] 0 0 0 0 [] [] (LineComment [re|^--|] Nothing)
--- >>> findHeader hc $ SourceCode [(Code, "foo"), (Code, "bar"), (Comment, "-- HEADER")]
--- Just (2,2)
+-- >>> findHeader hc $ SourceCode [(Comment, "-- HEADER"), (Code, "foo")]
+-- Just (0,0)
 findHeader
     :: CtHeaderConfig
     -- ^ appropriate header configuration
@@ -195,11 +225,31 @@ findHeader
     -> Maybe (Int, Int)
     -- ^ header position @(startLine, endLine)@
 findHeader HeaderConfig{..} input = case hcHeaderSyntax of
-    BlockComment start end _ -> findBlockHeader start end headerArea splitAt
-    LineComment prefix _ -> findLineHeader prefix headerArea splitAt
+    BlockComment start end _ -> findBlockCandidate start end candidateArea splitAt
+    LineComment prefix _ -> findLineCandidate prefix candidateArea splitAt
   where
     (before, headerArea, _) = splitSource hcPutAfter hcPutBefore input
-    splitAt = length (coerce before :: [CodeLine])
+    headerLines = coerce headerArea :: [CodeLine]
+    leadingBlank = takeWhile (T.null . T.strip . snd) headerLines
+    candidateArea = SourceCode $ drop (length leadingBlank) headerLines
+    splitAt = length (coerce before :: [CodeLine]) + length leadingBlank
+
+findBlockCandidate :: Regex -> Regex -> SourceCode -> Int -> Maybe HeaderPosition
+findBlockCandidate start end (SourceCode lines') offset = do
+    (_, firstLine) <- L.headMaybe lines'
+    guard $ isMatch start (T.strip firstLine)
+    let comments = takeWhile ((== Comment) . fst) lines'
+    guard $ any (isMatch end . T.strip . snd) comments
+    pure (offset, offset + length comments - 1)
+
+findLineCandidate :: Regex -> SourceCode -> Int -> Maybe HeaderPosition
+findLineCandidate prefix (SourceCode lines') offset = do
+    let comments = takeWhile isPrefixedComment lines'
+    guard (not $ null comments)
+    pure (offset, offset + length comments - 1)
+  where
+    isPrefixedComment (lineType, line) =
+        lineType == Comment && isMatch prefix (T.strip line)
 
 -- | Finds header in the form of /multi-line comment/ syntax, which is delimited
 -- with starting and ending pattern.

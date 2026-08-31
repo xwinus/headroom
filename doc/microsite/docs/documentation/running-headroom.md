@@ -10,12 +10,14 @@ _Headroom_ provides three different commands, you might already familiar with th
 ### Run Command
 Let's start with the most useful one. This command allows you to manipulate license headers in source code files, and provides four different modes to do so:
 
-1. __add mode__ _(default one)_ - will only add missing license headers, but won't touch existing ones.
-1. __replace mode__ - will add missing license headers, but also replace any already existing ones (if differs).
+1. __add mode__ _(default one)_ - will only add missing managed license headers and preserves existing source comments.
+1. __replace mode__ - will add missing license headers and replace owned headers that differ. Ambiguous comments are preserved.
 1. __check mode__ - checks that all your source code files have up-to-date license headers, without actually touching any files. When any file with outdated license header is detected, Headroom execution will result in return code `1`, so you can easily use this mode in your CI pipelines, etc. 
-1. __drop mode__ - will drop any existing license headers, without replacement.
+1. __drop mode__ - will drop owned license headers without replacement. Ambiguous comments are preserved.
 
 Changed source files are written through a temporary file in the same directory and replaced atomically. Headroom verifies the original content immediately before replacement; if another process changed the file while it was being processed, the command aborts without overwriting that newer content. Check mode and `--dry-run` never write source files.
+
+Headroom-generated headers contain paired, versioned ownership markers. These markers delimit the exact lines that `replace` and `drop` may change, even when a documentation comment immediately follows the header. For migration, an unmarked legacy header is considered owned only when its normalized text exactly matches the currently rendered template. A different, malformed, or otherwise ambiguous comment is treated as foreign and is never replaced or removed.
 
 #### Command Line Interface
 Below is the overview of command line interface of `run` command:

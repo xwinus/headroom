@@ -1,15 +1,15 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.39.6.
+-- This file has been generated from package.yaml by hpack version 0.38.3.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: "[kZ\175S\252{o\243\136Eg\235\245\197~\201\&2\196\&8-.\137\196@CIm\161\135Z\161"
+-- hash: 9c23004a2d61ff4c1597e94e03014ca7495d81920e06f0400b846ebac4005306
 
 name:           headroom
 version:        0.5.0.0
 synopsis:       License Header Manager
-description:    Headroom adds, updates, checks, and removes license and copyright headers in source code files. Define headers as Mustache templates, keep their variables in a YAML configuration file, and apply them consistently across your project. Headroom includes templates for popular open source licenses and can detect headers that it did not generate.
+description:    Headroom adds, updates, checks, and removes license and copyright headers in source code files. Define headers as Mustache templates, keep their variables in a YAML configuration file, and apply them consistently across your project. Headroom includes templates for popular open source licenses and conservatively recognizes exact legacy headers.
 category:       Utils
 homepage:       https://github.com/xwinus/headroom
 bug-reports:    https://github.com/xwinus/headroom/issues
@@ -230,6 +230,7 @@ library
       Headroom.FileType
       Headroom.FileType.Types
       Headroom.Header
+      Headroom.Header.Marker
       Headroom.Header.Sanitize
       Headroom.Header.Types
       Headroom.IO.FileSystem
@@ -361,6 +362,7 @@ test-suite spec
       Headroom.FileSupport.ShellSpec
       Headroom.FileSupportSpec
       Headroom.FileTypeSpec
+      Headroom.Header.IdentitySpec
       Headroom.Header.SanitizeSpec
       Headroom.HeaderSpec
       Headroom.IO.FileSystemSpec

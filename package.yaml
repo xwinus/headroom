@@ -13,8 +13,8 @@ description: >
   Headroom adds, updates, checks, and removes license and copyright headers in
   source code files. Define headers as Mustache templates, keep their variables
   in a YAML configuration file, and apply them consistently across your project.
-  Headroom includes templates for popular open source licenses and can detect
-  headers that it did not generate.
+  Headroom includes templates for popular open source licenses and
+  conservatively recognizes exact legacy headers.
 
 extra-source-files:
   - CHANGELOG.md

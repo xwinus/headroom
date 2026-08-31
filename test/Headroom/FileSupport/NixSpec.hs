@@ -39,7 +39,10 @@ import Headroom.Header
     ( addHeader
     , findHeader
     )
-import Headroom.Header.Types (HeaderInfo (..))
+import Headroom.Header.Types
+    ( HeaderDetection (..)
+    , HeaderInfo (..)
+    )
 import Headroom.IO.FileSystem (loadFile)
 import Headroom.SourceCode
     ( LineType (..)
@@ -112,7 +115,7 @@ spec = do
                           , "#! nix-shell -i bash"
                           , "{ pkgs }: pkgs.hello"
                           ]
-                info = HeaderInfo Nix config Nothing mempty
+                info = HeaderInfo Nix config NoHeader mempty
                 expected =
                     SourceCode
                         [ (Code, "#!/usr/bin/env nix-shell")
