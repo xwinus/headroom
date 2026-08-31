@@ -9,6 +9,9 @@
 -- Maintainer  : vaclav.svejcar@gmail.com
 -- Stability   : experimental
 -- Portability : POSIX
+--
+-- Matches source comments against rendered license header content without
+-- adding ownership metadata to the processed files.
 module Headroom.Header.Fingerprint
     ( matchHeader
     )
