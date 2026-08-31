@@ -166,6 +166,7 @@ env = TestEnv{..}
             , fsSetPermissions = undefined
             , fsWriteTempFile = undefined
             , fsWriteFile = undefined
+            , fsWalkFiles = undefined
             }
 
 envFor :: FilePath -> FileSystem (RIO TestEnv) -> TestEnv

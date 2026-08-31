@@ -1,5 +1,7 @@
 snapshot: lts-24.56
 packages:
   - .
+extra-deps:
+  - vcs-ignore-0.1.0.0
 ghc-options:
   prettyprinter: -optP-Wno-expansion-to-defined

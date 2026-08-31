@@ -22,3 +22,6 @@ spec = do
         it "displays correct output for Progress data type" $ do
             textDisplay (Progress 1 1) `shouldBe` "[1 of 1]"
             textDisplay (Progress 10 250) `shouldBe` "[ 10 of 250]"
+
+        it "displays progress when the final total is not known" $ do
+            textDisplay (CurrentProgress 42) `shouldBe` "[42]"

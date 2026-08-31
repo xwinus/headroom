@@ -4,7 +4,7 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 244a3499f63821bb5745451f467aee99e87184c89497efc7513e04535c9aa6ed
+-- hash: 012730d75f58343df98fd60144907de80d288b05fde1600fa02ac538e6852ef6
 
 name:           headroom
 version:        0.5.0.0
@@ -186,7 +186,9 @@ library
       Headroom.Command.Init
       Headroom.Command.Readers
       Headroom.Command.Run
+      Headroom.Command.Run.Action
       Headroom.Command.Run.Config
+      Headroom.Command.Run.Discovery
       Headroom.Command.Run.Write
       Headroom.Command.Types
       Headroom.Command.Utils
@@ -234,6 +236,7 @@ library
       Headroom.Header.Sanitize
       Headroom.Header.Types
       Headroom.IO.FileSystem
+      Headroom.IO.FileSystem.Walk
       Headroom.IO.KVStore
       Headroom.IO.Network
       Headroom.Meta
@@ -285,7 +288,7 @@ library
     , string-interpolate
     , template-haskell
     , time
-    , vcs-ignore
+    , vcs-ignore ==0.1.*
     , yaml
   default-language: Haskell2010
 
@@ -331,6 +334,7 @@ test-suite spec
       Headroom.Command.InitSpec
       Headroom.Command.ReadersSpec
       Headroom.Command.Run.ConfigSpec
+      Headroom.Command.Run.DiscoverySpec
       Headroom.Command.RunSpec
       Headroom.CommandSpec
       Headroom.Config.CompatSpec
@@ -405,4 +409,23 @@ test-suite spec
     , rio
     , string-interpolate
     , time
+    , vcs-ignore ==0.1.*
+  default-language: Haskell2010
+
+benchmark source-walker
+  type: exitcode-stdio-1.0
+  main-is: SourceWalker.hs
+  other-modules:
+      Paths_headroom
+  autogen-modules:
+      Paths_headroom
+  hs-source-dirs:
+      benchmark
+  ghc-options: -optP-Wno-nonportable-include-path -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints -Werror=incomplete-patterns
+  build-depends:
+      base >=4.7 && <5
+    , criterion >=1.6.4 && <1.7
+    , headroom
+    , optparse-applicative
+    , rio
   default-language: Haskell2010

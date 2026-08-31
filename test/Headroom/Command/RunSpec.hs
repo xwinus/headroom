@@ -196,6 +196,7 @@ env = TestEnv{..}
             , fsSetPermissions = undefined
             , fsWriteTempFile = undefined
             , fsWriteFile = undefined
+            , fsWalkFiles = undefined
             }
     envNetwork = Network{nDownloadContent = undefined}
     envPostProcessConfigs =

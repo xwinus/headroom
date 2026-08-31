@@ -83,7 +83,7 @@ library:
     - string-interpolate
     - template-haskell
     - time
-    - vcs-ignore
+    - vcs-ignore >= 0.1 && < 0.2
     - yaml
 
 tests:
@@ -103,6 +103,7 @@ tests:
       - QuickCheck
       - string-interpolate
       - time
+      - vcs-ignore >= 0.1 && < 0.2
     build-tools:
       - hspec-discover
       - headroom:headroom
@@ -116,3 +117,11 @@ tests:
     source-dirs: doctest
     dependencies:
       - doctest
+
+benchmarks:
+  source-walker:
+    main: SourceWalker.hs
+    source-dirs: benchmark
+    dependencies:
+      - criterion >= 1.6.4 && < 1.7
+      - headroom

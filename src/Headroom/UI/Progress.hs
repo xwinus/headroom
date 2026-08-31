@@ -21,9 +21,12 @@ import RIO
 import qualified RIO.Text as T
 import Text.Printf (printf)
 
--- | Progress indication. First argument is current progress, second the maximum
--- value.
-data Progress = Progress Int Int
+-- | Progress indication with either a known total or only the current count.
+data Progress
+    = -- | Current progress and maximum value.
+      Progress Int Int
+    | -- | Current progress while discovering work incrementally.
+      CurrentProgress Int
     deriving (Eq, Show)
 
 instance Display Progress where
@@ -34,6 +37,7 @@ instance Display Progress where
         format = "%" <> (show . length $ totalS) <> "d"
         currentS = printf format current
         totalS = show total
+    textDisplay (CurrentProgress current) = T.pack $ "[" <> show current <> "]"
 
 -- | Zips given list with the progress info.
 --
