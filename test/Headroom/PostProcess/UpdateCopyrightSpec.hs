@@ -51,6 +51,28 @@ spec = do
                 testEnv = TestEnv currYear mode
             postProcess updateCopyright testEnv sample `shouldBe` expected
 
+        it "matches selected authors only in parsed author text" $ do
+            let sample = "// 2nd Author | Copyright (c) 2019 1st Author"
+                mode = UpdateSelectedAuthors . SelectedAuthors $ "2nd Author" :| []
+                testEnv = TestEnv currYear mode
+            postProcess updateCopyright testEnv sample `shouldBe` sample
+
+        it "preserves the GPL2 postal code in all-authors mode" $ do
+            let sample =
+                    fromLines
+                        [ " * Copyright (c) 2019 Example Author"
+                        , " * Foundation, Inc., 59 Temple Place, Suite 330,"
+                        , " * Boston, MA 02111-1307"
+                        ]
+                expected =
+                    fromLines
+                        [ " * Copyright (c) 2019-2020 Example Author"
+                        , " * Foundation, Inc., 59 Temple Place, Suite 330,"
+                        , " * Boston, MA 02111-1307"
+                        ]
+                testEnv = TestEnv currYear UpdateAllAuthors
+            postProcess updateCopyright testEnv sample `shouldBe` expected
+
     describe "updateYears" $ do
         it "does nothing on up-to-date year" $ do
             let sample = "Copyright (c) 2020"
@@ -81,6 +103,23 @@ spec = do
             let sample = "Copyright (c) 2017-2019"
                 expected = "Copyright (c) 2017-2020"
             updateYears currYear sample `shouldBe` expected
+
+        it "preserves unrelated numeric identifiers in a statement" $ do
+            let sample =
+                    "Copyright (c) 2019 Example, version 1234, https://example.com/v2"
+                expected =
+                    "Copyright (c) 2019-2020 Example, version 1234, https://example.com/v2"
+            updateYears currYear sample `shouldBe` expected
+
+        it "preserves malformed and ambiguous statements" $ do
+            let samples =
+                    [ "Copyright (c) 2019-2020-2021 Example"
+                    , "Copyright (c) 2019 2020 Example"
+                    , "Copyright notice Copyright (c) 2019 Example"
+                    , "Copyright (c) 2020-2019 Example"
+                    , "Copyright (c) 0211-1307 Example"
+                    ]
+            updateYears currYear <$> samples `shouldBe` samples
 
         it "updates complex multi-line text" $ do
             let sample =
